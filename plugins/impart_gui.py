@@ -21,7 +21,7 @@ class impartGUI(wx.Dialog):
             id=wx.ID_ANY,
             title="impartGUI",
             pos=wx.DefaultPosition,
-            size=wx.Size(650, 650),
+            size=wx.Size(850, 650),
             style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER | wx.BORDER_DEFAULT,
         )
 
