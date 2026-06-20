@@ -38,6 +38,26 @@ def _find_exe() -> Path | None:
         candidates.append(pkg_root / exe_name)
         candidates.append(pkg_root / "plugins" / exe_name)
 
+    # KiCad user plugins directory (manual install)
+    for version in ("10.0", "9.0", "8.0"):
+        scripting = (
+            Path.home()
+            / "AppData"
+            / "Roaming"
+            / "kicad"
+            / version
+            / "scripting"
+            / "plugins"
+        )
+        candidates.append(scripting / exe_name)
+        candidates.append(scripting.parent / exe_name)
+
+    # Alternate PCM path under Documents
+    for version in ("10.0", "9.0", "8.0"):
+        alt = Path.home() / "Documents" / "KiCad" / version / "packages" / "com.github.Witawat.impartGUI"
+        candidates.append(alt / exe_name)
+        candidates.append(alt / "plugins" / exe_name)
+
     # De-duplicate
     seen: set[str] = set()
     unique: list[Path] = []
@@ -47,15 +67,27 @@ def _find_exe() -> Path | None:
             seen.add(s)
             unique.append(c)
 
+    searched = ""
     _log(f"Searching for {exe_name} in {len(unique)} locations")
     for path in unique:
         resolved = path.resolve()
         _log(f"  checking: {resolved}")
+        searched += f"\n  {resolved}"
         if resolved.is_file():
             _log(f"  -> found at {resolved}")
             return resolved
 
+    _log("EXE not found")
     return None
+
+
+def _debug_paths() -> str:
+    lines = [f"__file__: {__file__}"]
+    lines.append(f"cwd: {Path.cwd()}")
+    for v in ("10.0", "9.0", "8.0"):
+        pkg = Path.home() / "AppData" / "Roaming" / "kicad" / v / "packages" / "com.github.Witawat.impartGUI" / "impartGUI.exe"
+        lines.append(f"PCM {v}: {'EXISTS' if pkg.is_file() else 'missing'}")
+    return "\n".join(lines)
 
 
 def launch() -> None:
@@ -74,7 +106,8 @@ def launch() -> None:
     msg = (
         f"Could not find impartGUI.exe.\n\n"
         "Make sure the EXE is placed next to the plugin folder.\n"
-        "Open the download page now?"
+        "Download from GitHub Releases?\n\n"
+        f"-- debug --\n{_debug_paths()}"
     )
     dlg = wx.MessageDialog(None, msg, "EXE Not Found", wx.YES_NO | wx.ICON_QUESTION)
     if dlg.ShowModal() == wx.ID_YES:
