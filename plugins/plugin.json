@@ -1,6 +1,6 @@
 {
   "$schema": "https://go.kicad.org/api/schemas/v1",
-  "identifier": "com.github.Steffen-W.impartGUI",
+  "identifier": "com.github.Witawat.impartGUI",
   "name": "impart GUI for KiCad",
   "description": "Import library files from Octopart, Samacsys, Ultralibrarian, Snapeda and EasyEDA",
   "runtime": {

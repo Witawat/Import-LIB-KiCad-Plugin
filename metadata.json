@@ -2,24 +2,24 @@
     "$schema": "https://go.kicad.org/pcm/schemas/v1",
     "name": "impart GUI for KiCad",
     "description": "Import library files from Octopart, Samacsys, Ultralibrarian, Snapeda and EasyEDA",
-    "description_full": "Import library files from Octopart, Samacsys, Ultralibrarian, Snapeda and EasyEDA.\n For usage and correct setup please read the Readme: \n https://github.com/Steffen-W/Import-LIB-KiCad-Plugin#use-of-the-application",
-    "identifier": "com.github.Steffen-W.impartGUI",
+    "description_full": "Import library files from Octopart, Samacsys, Ultralibrarian, Snapeda and EasyEDA.\nFor usage and correct setup please read the Readme:\nhttps://github.com/Witawat/Import-LIB-KiCad-Plugin",
+    "identifier": "com.github.Witawat.impartGUI",
     "type": "plugin",
     "author": {
-        "name": "Steffen Wittemeier",
+        "name": "Witawat",
         "contact": {
-            "github": "https://github.com/Steffen-W"
+            "github": "https://github.com/Witawat"
         }
     },
     "maintainer": {
-        "name": "Steffen Wittemeier",
+        "name": "Witawat",
         "contact": {
-            "github": "https://github.com/Steffen-W"
+            "github": "https://github.com/Witawat"
         }
     },
     "license": "GPL-3.0",
     "resources": {
-        "homepage": "https://github.com/Steffen-W/Import-LIB-KiCad-Plugin"
+        "homepage": "https://github.com/Witawat/Import-LIB-KiCad-Plugin"
     },
     "tags": [
         "import",
@@ -35,7 +35,7 @@
     ],
     "versions": [
         {
-            "version": "2025.06.20",
+            "version": "1.0.0",
             "status": "stable",
             "kicad_version": "8.0"
         }

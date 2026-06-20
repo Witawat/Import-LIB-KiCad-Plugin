@@ -310,14 +310,14 @@ class KiCad_Settings:
                         msg += "\n  Preferences -> Manage Footprint Libraries -> Add entry:"
                         msg += "\n  Name: " + SearchLib.split(".")[0]
                         msg += "\n  Path: " + temp_path
-                        msg += "\n  See: github.com/Steffen-W/Import-LIB-KiCad-Plugin#including-the-imported-libraries-in-kicad"
+                        msg += "\n  See: github.com/Witawat/Import-LIB-KiCad-Plugin#including-the-imported-libraries-in-kicad"
                 else:
                     msg += "\nPlease add the library " + SearchLib + " manually:"
                     msg += "\n  Preferences -> Manage Footprint Libraries -> Add entry:"
                     msg += "\n  Name: " + SearchLib.split(".")[0]
                     msg += "\n  Path: " + temp_path
                     msg += "\n  Note: The automatic option may not work reliably."
-                    msg += "\n  See: github.com/Steffen-W/Import-LIB-KiCad-Plugin#including-the-imported-libraries-in-kicad"
+                    msg += "\n  See: github.com/Witawat/Import-LIB-KiCad-Plugin#including-the-imported-libraries-in-kicad"
         except Exception:
             msg += f"\nError checking footprint library {SearchLib}."
 
@@ -359,14 +359,14 @@ class KiCad_Settings:
                         msg += "\n  Preferences -> Manage Symbol Libraries -> Add entry:"
                         msg += "\n  Name: " + SearchLib_name_short
                         msg += "\n  Path: " + temp_path
-                        msg += "\n  See: github.com/Steffen-W/Import-LIB-KiCad-Plugin#including-the-imported-libraries-in-kicad"
+                        msg += "\n  See: github.com/Witawat/Import-LIB-KiCad-Plugin#including-the-imported-libraries-in-kicad"
                 else:
                     msg += "\nPlease add the library manually:"
                     msg += "\n  Preferences -> Manage Symbol Libraries -> Add entry:"
                     msg += "\n  Name: " + SearchLib_name_short
                     msg += "\n  Path: " + temp_path
                     msg += "\n  Note: The automatic option may not work reliably."
-                    msg += "\n  See: github.com/Steffen-W/Import-LIB-KiCad-Plugin#including-the-imported-libraries-in-kicad"
+                    msg += "\n  See: github.com/Witawat/Import-LIB-KiCad-Plugin#including-the-imported-libraries-in-kicad"
         except Exception:
             msg += f"\nError checking symbol library {SearchLib}."
 

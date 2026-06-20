@@ -4,13 +4,13 @@
 
 | รายการ | รายละเอียด |
 |--------|------------|
-| ผู้พัฒนา | Steffen Wittemeier (Steffen-W) |
+| ผู้พัฒนา | Witawat (ต้นฉบับ: Steffen Wittemeier (Steffen-W)) |
 | License | GPL-3.0 |
 | KiCad ต่ำสุด | 8.0.4 |
 | Python ต่ำสุด | 3.9 |
 | OS | Windows, macOS, Linux |
 | ประเภท | Action Plugin (pcbnew) |
-| PCM ID | `com.github.Steffen-W.impartGUI` |
+| PCM ID | `com.github.Witawat.impartGUI` |
 
 ## ภาพรวมฟังก์ชันการทำงาน
 
@@ -153,8 +153,8 @@ User ค้นหาชื่อชิ้นส่วน
 
 ## การใช้ Git Submodules
 Repo มี 2 submodules:
-- `plugins/kiutils` → `github.com/Steffen-W/kiutils.git` (branch: master)
-- `plugins/easyeda2kicad` → `github.com/Steffen-W/easyeda2kicad.py.git` (branch: master)
+- `plugins/kiutils` → `github.com/Steffen-W/kiutils.git` (branch: master) — fork จาก KiCad
+- `plugins/easyeda2kicad` → `github.com/Steffen-W/easyeda2kicad.py.git` (branch: master) — fork จาก uPesy
 
 หลัง clone ต้องรัน: `git submodule update --init --recursive`
 

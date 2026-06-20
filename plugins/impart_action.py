@@ -799,7 +799,7 @@ class ImpartFrontend(impartGUI):
         full_msg = (
             f"{msg}\n\n"
             "More information can be found in the README for the integration into KiCad.\n"
-            "github.com/Steffen-W/Import-LIB-KiCad-Plugin\n"
+            "github.com/Witawat/Import-LIB-KiCad-Plugin (original by Steffen-W)\n"
             "Some configurations require a KiCad restart to be detected correctly."
         )
 

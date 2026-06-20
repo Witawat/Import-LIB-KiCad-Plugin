@@ -222,8 +222,8 @@ class impartGUI(wx.Dialog):
         self.m_hyperlink = wx.adv.HyperlinkCtrl(
             self,
             wx.ID_ANY,
-            "github.com/Steffen-W/Import-LIB-KiCad-Plugin",
-            "https://github.com/Steffen-W/Import-LIB-KiCad-Plugin",
+            "github.com/Witawat/Import-LIB-KiCad-Plugin",
+            "https://github.com/Witawat/Import-LIB-KiCad-Plugin",
             wx.DefaultPosition,
             wx.DefaultSize,
             wx.adv.HL_DEFAULT_STYLE,
