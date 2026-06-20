@@ -7,10 +7,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-current_dir = Path(__file__).resolve().parent
-kiutils_src = current_dir / "kiutils" / "src"
-if str(kiutils_src) not in sys.path:
-    sys.path.insert(0, str(kiutils_src))
+if not getattr(sys, 'frozen', False):
+    current_dir = Path(__file__).resolve().parent
+    kiutils_src = current_dir / "kiutils" / "src"
+    if str(kiutils_src) not in sys.path:
+        sys.path.insert(0, str(kiutils_src))
 
 try:
     from kiutils.symbol import SymbolLib  # noqa: E402
@@ -50,6 +51,7 @@ class LibraryScanner:
 
     def __init__(self, dest_path: str | Path) -> None:
         self.dest_path = Path(dest_path)
+        logger.info(f"LibraryScanner: dest_path={self.dest_path}, _HAS_KIUTILS={_HAS_KIUTILS}")
 
     def _detect_source(self, lib_name: str) -> str:
         for src in self.SUPPORTED_SOURCES:
@@ -60,7 +62,9 @@ class LibraryScanner:
     def scan_symbols(self) -> list[SymbolEntry]:
         results: list[SymbolEntry] = []
         if not self.dest_path.is_dir():
+            logger.warning(f"scan_symbols: dest_path does not exist: {self.dest_path}")
             return results
+        logger.info(f"scan_symbols: scanning {self.dest_path}")
         for f in sorted(self.dest_path.iterdir()):
             if f.is_file() and f.suffix == ".kicad_sym":
                 entry = SymbolEntry(
@@ -72,21 +76,33 @@ class LibraryScanner:
                 if names:
                     entry.symbol_names = names
                 results.append(entry)
+                _0_1_entries = [n for n in names if "_0_" in n]
+                logger.info(f"scan_symbols: found {f.name}: {len(names)} symbols, _0_1_count={len(_0_1_entries)}")
+                if _0_1_entries:
+                    logger.warning(f"scan_symbols: _0_1 entries in {f.name}: {_0_1_entries}")
+        logger.info(f"scan_symbols: total libraries={len(results)}, total symbols={sum(len(r.symbol_names) for r in results)}")
         return results
 
     def _read_symbol_names(self, file_path: Path) -> list[str]:
         if _HAS_KIUTILS:
-            try:
-                lib = SymbolLib().from_file(str(file_path))
-                return [s.entryName for s in lib.symbols]
-            except Exception as e:
-                logger.debug(f"Cannot read {file_path.name}: {e}")
+            for enc in ('utf-8', None, 'cp1252'):
+                try:
+                    lib = SymbolLib().from_file(str(file_path), encoding=enc)
+                    names = [s.entryName for s in lib.symbols]
+                    logger.debug(f"_read_symbol_names (kiutils, enc={enc}): {file_path.name} -> {len(names)} symbols")
+                    return names
+                except Exception as e:
+                    logger.debug(f"Cannot read {file_path.name} with kiutils (enc={enc}): {e}")
+            logger.info(f"_read_symbol_names: kiutils failed for {file_path.name}, falling back to regex")
+        else:
+            logger.debug(f"_read_symbol_names: kiutils not available, using regex for {file_path.name}")
         return self._read_symbol_names_regex(file_path)
 
     def _read_symbol_names_regex(self, file_path: Path) -> list[str]:
         try:
             content = file_path.read_text(encoding="utf-8", errors="replace")
             names = re.findall(r'\(symbol\s+"([^"]*)"', content)
+            logger.debug(f"_read_symbol_names_regex: {file_path.name} -> {len(names)} symbols")
             return names
         except Exception as e:
             logger.debug(f"Cannot parse {file_path.name}: {e}")
@@ -95,7 +111,9 @@ class LibraryScanner:
     def scan_footprints(self) -> list[FootprintEntry]:
         results: list[FootprintEntry] = []
         if not self.dest_path.is_dir():
+            logger.warning(f"scan_footprints: dest_path does not exist: {self.dest_path}")
             return results
+        logger.info(f"scan_footprints: scanning {self.dest_path}")
         for d in sorted(self.dest_path.iterdir()):
             if d.is_dir() and d.suffix == ".pretty":
                 mods = sorted(d.glob("*.kicad_mod"))
@@ -114,6 +132,7 @@ class LibraryScanner:
                         file_count=len(mods),
                     )
                 )
+                logger.info(f"scan_footprints: found {d.name}: {len(mods)} footprints")
         return results
 
     def _extract_footprint_name(self, file_path: Path) -> str | None:

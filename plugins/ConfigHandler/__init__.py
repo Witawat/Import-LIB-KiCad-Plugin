@@ -13,10 +13,15 @@ class ConfigHandler:
         self.defaults = {
             "SRC_PATH": str(Path.home() / "Downloads"),
             "DEST_PATH": str(Path.home() / "KiCad"),
+            "debug_log": "False",
         }
 
+        logging.info(f"ConfigHandler: loading config from {config_path}")
+
         try:
-            if self.config.read(self.config_path):
+            read_ok = self.config.read(self.config_path)
+            if read_ok:
+                logging.info(f"ConfigHandler: config read successfully from {config_path}, sections={self.config.sections()}")
                 if "config" not in self.config:
                     self.config.add_section("config")
 
@@ -25,13 +30,16 @@ class ConfigHandler:
                         self.config["config"][key] = default_value
 
                 self.config_is_set = True
+                logging.info(f"ConfigHandler: SRC_PATH={self.config['config'].get('SRC_PATH')}, DEST_PATH={self.config['config'].get('DEST_PATH')}")
             else:
+                logging.warning(f"ConfigHandler: config read returned empty from {config_path}, creating defaults")
                 self._create_default_config()
         except Exception as e:
-            logging.error(f"Error when reading in the configuration: {e}")
+            logging.error(f"ConfigHandler: error reading config: {e}")
             self._create_default_config()
 
         if not self.config_is_set:
+            logging.info("ConfigHandler: saving default config")
             self.save_config()
 
     def _create_default_config(self) -> None:
@@ -42,6 +50,16 @@ class ConfigHandler:
             self.config["config"][key] = value
 
         self.config_is_set = False
+        logging.info(f"ConfigHandler: created default config: SRC_PATH={self.defaults['SRC_PATH']}, DEST_PATH={self.defaults['DEST_PATH']}")
+
+    def get_DEBUG_LOG(self) -> bool:
+        val = self.config["config"].get("debug_log", "False")
+        return val.lower() == "true"
+
+    def set_DEBUG_LOG(self, val: bool) -> None:
+        logging.info(f"ConfigHandler: set_DEBUG_LOG to {val}")
+        self.config["config"]["debug_log"] = str(val)
+        self.save_config()
 
     def get_SRC_PATH(self) -> str:
         return self.config["config"]["SRC_PATH"]
@@ -51,9 +69,12 @@ class ConfigHandler:
         self.save_config()
 
     def get_DEST_PATH(self) -> str:
-        return self.config["config"]["DEST_PATH"]
+        path = self.config["config"]["DEST_PATH"]
+        logging.debug(f"ConfigHandler: get_DEST_PATH -> {path}")
+        return path
 
     def set_DEST_PATH(self, var: str) -> None:
+        logging.info(f"ConfigHandler: set_DEST_PATH from {self.config['config'].get('DEST_PATH')} to {var}")
         self.config["config"]["DEST_PATH"] = var
         self.save_config()
 
@@ -72,7 +93,9 @@ class ConfigHandler:
 
     def save_config(self) -> None:
         try:
+            logging.info(f"ConfigHandler: saving config to {self.config_path}")
             with open(self.config_path, "w") as configfile:
                 self.config.write(configfile)
+            logging.info(f"ConfigHandler: config saved successfully (DEST_PATH={self.config['config'].get('DEST_PATH')})")
         except Exception as e:
-            logging.error(f"Error saving the configuration: {e}")
+            logging.error(f"ConfigHandler: error saving config to {self.config_path}: {e}")

@@ -16,10 +16,11 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 # Setup kiutils path using sys.path manipulation like KiCad_Settings
-current_dir = Path(__file__).resolve().parent
-kiutils_src = current_dir.parent / "kiutils" / "src"
-if str(kiutils_src) not in sys.path:
-    sys.path.insert(0, str(kiutils_src))
+if not getattr(sys, 'frozen', False):
+    current_dir = Path(__file__).resolve().parent
+    kiutils_src = current_dir.parent / "kiutils" / "src"
+    if str(kiutils_src) not in sys.path:
+        sys.path.insert(0, str(kiutils_src))
 
 from kiutils.items.common import Font, Position  # noqa: E402
 

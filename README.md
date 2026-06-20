@@ -311,6 +311,19 @@ Import-LIB-KiCad-Plugin/
 └── requirements.txt             # Python dependencies
 ```
 
+### Build EXE (Windows)
+
+ใช้ `build_exe.bat` สร้าง `dist/impartGUI.exe` สำหรับรันโดยไม่ต้องติดตั้ง Python:
+
+```bash
+build_exe.bat
+```
+
+หมายเหตุ:
+- ใช้ PyInstaller เพื่อรวมทุกอย่างเป็นไฟล์ .exe ไฟล์เดียว
+- รอบแรก config จะ copy จาก temp มาที่ `dist/config.ini` โดยอัตโนมัติ
+- ดู `AGENT.md` สำหรับรายละเอียดเพิ่มเติม
+
 ### สร้าง ZIP Package
 
 ```bash

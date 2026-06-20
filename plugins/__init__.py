@@ -74,29 +74,30 @@ def cleanup_logging() -> None:
 def setup_submodule_paths() -> bool:
     """Set up Python paths for git submodules"""
     try:
-        # Add kiutils submodule path
-        kiutils_path = plugin_dir / "kiutils" / "src"
-        if kiutils_path.exists():
-            kiutils_str = str(kiutils_path)
-            if kiutils_str not in sys.path:
-                sys.path.insert(0, kiutils_str)
-                logger.info(f"Added kiutils to sys.path: {kiutils_str}")
+        if not getattr(sys, 'frozen', False):
+            # Add kiutils submodule path
+            kiutils_path = plugin_dir / "kiutils" / "src"
+            if kiutils_path.exists():
+                kiutils_str = str(kiutils_path)
+                if kiutils_str not in sys.path:
+                    sys.path.insert(0, kiutils_str)
+                    logger.info(f"Added kiutils to sys.path: {kiutils_str}")
 
-        # Add easyeda2kicad submodule path
-        easyeda2kicad_path = plugin_dir / "easyeda2kicad"
-        if easyeda2kicad_path.exists():
-            easyeda2kicad_str = str(easyeda2kicad_path)
-            if easyeda2kicad_str not in sys.path:
-                sys.path.insert(0, easyeda2kicad_str)
-                logger.info(f"Added easyeda2kicad to sys.path: {easyeda2kicad_str}")
+            # Add easyeda2kicad submodule path
+            easyeda2kicad_path = plugin_dir / "easyeda2kicad"
+            if easyeda2kicad_path.exists():
+                easyeda2kicad_str = str(easyeda2kicad_path)
+                if easyeda2kicad_str not in sys.path:
+                    sys.path.insert(0, easyeda2kicad_str)
+                    logger.info(f"Added easyeda2kicad to sys.path: {easyeda2kicad_str}")
 
-        # Add plugin directory itself
-        plugin_dir_str = str(plugin_dir)
-        if plugin_dir_str not in sys.path:
-            sys.path.insert(0, plugin_dir_str)
-            logger.info(f"Added plugin directory to sys.path: {plugin_dir_str}")
+            # Add plugin directory itself
+            plugin_dir_str = str(plugin_dir)
+            if plugin_dir_str not in sys.path:
+                sys.path.insert(0, plugin_dir_str)
+                logger.info(f"Added plugin directory to sys.path: {plugin_dir_str}")
 
-        logger.info("All submodule paths configured successfully")
+            logger.info("All submodule paths configured successfully")
         return True
 
     except Exception as e:

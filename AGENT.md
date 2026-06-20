@@ -125,8 +125,32 @@ except ImportError:
 ใช้ `run_standalone.bat` — หา KiCad Python อัตโนมัติ + ลง dependencies:
 - `kiutils` — จำเป็น (fallback regex มี แต่ kiutils ให้ข้อมูลครบ)
 - `easyeda2kicad` — สำหรับ EasyEDA import
-  
-## การ build/distribute
+
+## การ build EXE (Windows)
+ใช้ `build_exe.bat` — สร้าง `dist/impartGUI.exe` ด้วย PyInstaller:
+
+### Hidden imports ที่ต้องระบุ
+- `ConfigHandler`, `FileHandler`, `impart_gui`, `KiCad_Settings`, `KiCadImport`
+- `KiCadSettingsPaths`, `kicad_cli`, `component_search`
+- `easyeda2kicad.easyeda.easyeda_api`, `kiutils`
+
+### Data files ที่ต้อง include
+- `icon.png` — ใช้เป็น icon ในหน้าต่าง
+- `config.ini` — include เพื่อให้ EXE มีค่า default ตอนแรก
+
+### Config persistence (frozen mode)
+เมื่อรันเป็น EXE (`sys.frozen=True`):
+- Config path = `{exe_dir}/config.ini` (ข้าง executable, ไม่ใช่ temp dir)
+- รอบแรก: copy config จาก temp dir (`_MEIPASS/plugins/config.ini`) ไปที่ exe_dir
+- หลังจากนั้น: อ่าน/เขียนจาก exe_dir โดยตรง — config อยู่ถาวร
+
+### Encoding issue: kiutils + regex fallback
+เมื่อ kiutils อ่าน `.kicad_sym` ไม่ผ่าน (encoding error ใน EXE):
+- `_read_symbol_names()` จะลองหลาย encoding: `utf-8` → `None` → `cp1252`
+- ถ้าทั้งหมด failed → fallback เป็น regex
+- regex นับ `(symbol "NAME")` ทุกอันรวมถึง `_0_1` (KiCad duplicate) → ตัวเลขสูงกว่าความเป็นจริง
+
+## การ build/distribute (ZIP)
 ใช้ `generate_zip.sh` (ต้องการ bash, jq, zip):
 - จัดการ submodule auto-init/update
 - แกะเฉพาะส่วนที่จำเป็นของ submodule

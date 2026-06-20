@@ -7,10 +7,11 @@ import sys
 from pathlib import Path
 from typing import Any, cast
 
-current_dir = Path(__file__).resolve().parent
-kiutils_src = current_dir.parent / "kiutils" / "src"
-if str(kiutils_src) not in sys.path:
-    sys.path.insert(0, str(kiutils_src))
+if not getattr(sys, 'frozen', False):
+    current_dir = Path(__file__).resolve().parent
+    kiutils_src = current_dir.parent / "kiutils" / "src"
+    if str(kiutils_src) not in sys.path:
+        sys.path.insert(0, str(kiutils_src))
 
 from kiutils.libraries import Library, LibTable  # noqa: E402
 

@@ -24,12 +24,13 @@ import wx.adv
 import wx.html2
 
 # --- make the easyeda2kicad submodule importable ---
-current_dir = Path(__file__).resolve().parent
-easyeda_submodule = current_dir / "easyeda2kicad"
-if easyeda_submodule.exists():
-    easyeda_str = str(easyeda_submodule)
-    if easyeda_str not in sys.path:
-        sys.path.insert(0, easyeda_str)
+if not getattr(sys, 'frozen', False):
+    current_dir = Path(__file__).resolve().parent
+    easyeda_submodule = current_dir / "easyeda2kicad"
+    if easyeda_submodule.exists():
+        easyeda_str = str(easyeda_submodule)
+        if easyeda_str not in sys.path:
+            sys.path.insert(0, easyeda_str)
 
 from easyeda2kicad.easyeda.easyeda_api import EasyedaApi  # noqa: E402
 

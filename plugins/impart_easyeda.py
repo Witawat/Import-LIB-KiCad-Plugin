@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 current_dir = Path(__file__).resolve().parent
 easyeda_submodule = current_dir / "easyeda2kicad"
 
-if easyeda_submodule.exists():
+if not getattr(sys, 'frozen', False) and easyeda_submodule.exists():
     # Remove any conflicting easyeda2kicad modules from cache first
     modules_to_remove = [k for k in sys.modules.keys() if k.startswith("easyeda2kicad")]
     for mod in modules_to_remove:

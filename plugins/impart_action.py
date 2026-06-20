@@ -11,6 +11,7 @@ import logging
 import os
 import socket
 import sys
+import traceback
 from pathlib import Path
 from threading import Thread
 from time import sleep
@@ -44,24 +45,34 @@ def quick_instance_check() -> bool:
 if __name__ == "__main__":
     is_new_instance = not quick_instance_check()
 
+    log_dir = Path(sys.executable).resolve().parent if getattr(sys, 'frozen', False) else script_dir
+
+    log_file = log_dir / "plugin.log"
     if is_new_instance:
         logging.basicConfig(
             level=logging.DEBUG,
             format="%(asctime)s %(levelname)s [%(name)s:%(filename)s:%(lineno)d]: %(message)s",
-            filename=script_dir / "plugin.log",
-            filemode="w",  # Overwrite for new instance
+            filename=log_file,
+            filemode="w",
         )
         logging.info("New instance started - log file reset")
     else:
         logging.basicConfig(
             level=logging.WARNING,
             format="%(message)s",
-            filename=script_dir / "plugin.log",
-            filemode="a",  # Append for existing instance
+            filename=log_file,
+            filemode="a",
         )
         logging.warning("Another instance detected - exiting or continuing with limited logging")
 
+    # Force unbuffered logging so all lines appear immediately
+    for h in logging.getLogger().handlers:
+        if isinstance(h, logging.FileHandler):
+            h.terminator = "\n"
+            h.flush()
+
     logging.debug("Application starting...")
+    logging.debug(f"Log file: {log_file}")
 
 # Import dependencies
 try:
@@ -191,12 +202,42 @@ class ImpartBackend:
     def __init__(self) -> None:
         """Initialize backend components."""
         logging.info("Initializing ImpartBackend")
+        logging.info(f"sys.frozen={getattr(sys, 'frozen', False)}, sys.executable={sys.executable}, __file__={__file__}")
 
-        self.config_path = os.path.join(os.path.dirname(__file__), "config.ini")
+        if getattr(sys, 'frozen', False):
+            exe_dir = Path(sys.executable).resolve().parent
+            self.config_path = str(exe_dir / "config.ini")
+            logging.info(f"Frozen mode: exe_dir={exe_dir}")
+            if not Path(self.config_path).exists():
+                temp_config = Path(__file__).resolve().parent / "config.ini"
+                logging.info(f"EXE config not found, checking temp config: {temp_config}")
+                if temp_config.exists():
+                    try:
+                        import shutil
+                        shutil.copy2(str(temp_config), self.config_path)
+                        logging.info(f"Copied config from temp to EXE dir: {self.config_path}")
+                    except Exception as e:
+                        logging.warning(f"Failed to copy config: {e}")
+                else:
+                    logging.warning(f"Temp config not found either: {temp_config}")
+            else:
+                logging.info(f"EXE config already exists: {self.config_path}")
+        else:
+            self.config_path = os.path.join(os.path.dirname(__file__), "config.ini")
+        logging.info(f"Using config path: {self.config_path}")
 
         try:
             self.kicad_app = KiCadApp(prefer_ipc=True, min_version="8.0.4")
             self.config = ConfigHandler(self.config_path)
+            # Apply log level from config (default: INFO if debug_log=False)
+            if not self.config.get_DEBUG_LOG():
+                root = logging.getLogger()
+                root.setLevel(logging.INFO)
+                for h in root.handlers:
+                    h.setLevel(logging.INFO)
+                logging.info("Debug logging disabled via config (debug_log=False)")
+            else:
+                logging.info("Debug logging enabled via config (debug_log=True)")
             self.kicad_settings = KiCad_Settings(str(self.kicad_app.settings_path))
 
             self.folder_handler = FileHandler(
@@ -806,33 +847,58 @@ class ImpartFrontend(impartGUI):
 
     def OnLibraryBrowser(self, event: wx.CommandEvent) -> None:
         """Open the library browser dialog."""
+        logging.info("=== OnLibraryBrowser START ===")
         try:
             from .library_scanner import LibraryScanner
             from .library_browser import LibraryBrowserDialog
         except ImportError:
             from library_scanner import LibraryScanner  # type: ignore[import-not-found,no-redef]
             from library_browser import LibraryBrowserDialog  # type: ignore[import-not-found,no-redef]
+        logging.info("OnLibraryBrowser: imports done")
 
-        if self.backend.local_lib and self.kicad_project:
-            scan_path = self.kicad_project
-        else:
-            scan_path = self.backend.config.get_DEST_PATH()
+        try:
+            if self.backend.local_lib and self.kicad_project:
+                scan_path = self.kicad_project
+                logging.info(f"OnLibraryBrowser: using kicad_project scan_path={scan_path}")
+            else:
+                scan_path = self.backend.config.get_DEST_PATH()
+                logging.info(f"OnLibraryBrowser: using DEST_PATH={scan_path}")
 
-        if not scan_path or not Path(scan_path).is_dir():
-            wx.MessageBox(
-                f"Destination path does not exist:\n{scan_path}\n\n"
-                "Please set a valid library save location first.",
-                "Cannot Scan",
-                wx.OK | wx.ICON_WARNING,
-            )
+            logging.info(f"OnLibraryBrowser: local_lib={self.backend.local_lib}, kicad_project={self.kicad_project}")
+
+            if not scan_path:
+                logging.warning("OnLibraryBrowser: scan_path is empty/None")
+                wx.MessageBox("Destination path is not set.", "Cannot Scan", wx.OK | wx.ICON_WARNING)
+                event.Skip()
+                return
+
+            logging.info(f"OnLibraryBrowser: scan_path raw repr={scan_path!r} len={len(scan_path)}")
+            scan_path_obj = Path(scan_path)
+            path_exists = scan_path_obj.is_dir()
+            logging.info(f"OnLibraryBrowser: Path({scan_path!r}).is_dir() = {path_exists}, absolute={scan_path_obj.resolve()}")
+
+            if not path_exists:
+                wx.MessageBox(
+                    f"Destination path does not exist:\n{scan_path}\n\n"
+                    "Please set a valid library save location first.",
+                    "Cannot Scan",
+                    wx.OK | wx.ICON_WARNING,
+                )
+                event.Skip()
+                return
+
+            scanner = LibraryScanner(scan_path)
+            logging.info("OnLibraryBrowser: scanner created, creating dialog")
+            dlg = LibraryBrowserDialog(self, scanner)
+            logging.info("OnLibraryBrowser: dialog created, calling ShowModal")
+            dlg.ShowModal()
+            logging.info("OnLibraryBrowser: dialog closed")
+            dlg.Destroy()
             event.Skip()
-            return
-
-        scanner = LibraryScanner(scan_path)
-        dlg = LibraryBrowserDialog(self, scanner)
-        dlg.ShowModal()
-        dlg.Destroy()
-        event.Skip()
+        except Exception:
+            logging.exception("OnLibraryBrowser: unhandled exception")
+            wx.MessageBox(f"Error opening Library Browser:\n{traceback.format_exc()}", "Error", wx.OK | wx.ICON_ERROR)
+            event.Skip()
 
     def ButtomManualImport(self, event: wx.CommandEvent) -> None:
         """Handle manual EasyEDA import."""
