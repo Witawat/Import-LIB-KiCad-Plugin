@@ -1,21 +1,21 @@
-# EasyEDA / JLCPCB / LCSC API Reference
+# คู่มือ API EasyEDA / JLCPCB / LCSC
 
-This document describes the HTTP APIs used by the Component Search dialog to query and display
-electronic components.  All calls go through the `EasyedaApi` class from the
-`easyeda2kicad` library (`easyeda2kicad.easyeda.easyeda_api`).  No API key is required.
+เอกสารนี้อธิบาย HTTP API ที่ Component Search dialog ใช้ในการค้นหาและแสดงข้อมูลชิ้นส่วน
+การเรียก API ทั้งหมดผ่านคลาส `EasyedaApi` จากไลบรารี `easyeda2kicad`
+(`easyeda2kicad.easyeda.easyeda_api`) ไม่ต้องใช้ API key
 
 ---
 
-## 1. JLCPCB Component Search (Shopping Cart API)
+## 1. ค้นหาชิ้นส่วน JLCPCB (Shopping Cart API)
 
-Search the JLCPCB parts catalogue.  This is the primary search endpoint called by
-`search_jlcpcb_components()`.
+ค้นหาชิ้นส่วนจากแคตตาล็อก JLCPCB เป็น endpoint หลักที่ `search_jlcpcb_components()`
+เรียกใช้งาน
 
 - **Method:** POST
 - **URL:** `https://jlcpcb.com/api/overseas-pcb-order/v1/shoppingCart/smtGood/selectSmtComponentList`
 - **Content-Type:** `application/json`
 
-### Request payload
+### ตัวอย่าง payload ที่ส่ง
 
 ```json
 {
@@ -26,14 +26,14 @@ Search the JLCPCB parts catalogue.  This is the primary search endpoint called b
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `keyword` | string | Search term (LCSC code, part name, etc.) |
-| `currentPage` | int | Page number (1-based) |
-| `pageSize` | int | Results per page (used: 30) |
-| `componentLibraryType` | string? | `"base"` = Basic, `"expand"` = Extended, omit = all |
+| ฟิลด์ | ชนิด | คำอธิบาย |
+|-------|------|----------|
+| `keyword` | string | คำค้นหา (LCSC code, ชื่อชิ้นส่วน, ฯลฯ) |
+| `currentPage` | int | หน้าที่ต้องการ (เริ่มที่ 1) |
+| `pageSize` | int | จำนวนผลลัพธ์ต่อหน้า (ค่าที่ใช้: 30) |
+| `componentLibraryType` | string? | `"base"` = Basic, `"expand"` = Extended, ไม่ส่ง = ทั้งหมด |
 
-### Response structure
+### โครงสร้าง response
 
 ```json
 {
@@ -47,35 +47,35 @@ Search the JLCPCB parts catalogue.  This is the primary search endpoint called b
 }
 ```
 
-Each item in `list` is mapped to these fields:
+แต่ละ item ใน `list` ถูกแมปดังนี้:
 
-| Source field | Mapped key | Description |
-|--------------|-----------|-------------|
-| `componentCode` | `lcsc` | LCSC part number (e.g. `C2040`) |
-| `componentName` | `name` | Component name |
-| `componentModelEn` | `model` | English model number |
-| `componentBrandEn` | `brand` | Brand name |
-| `componentSpecificationEn` | `package` | Package type |
-| `componentTypeEn` | `category` | Component category |
-| `stockCount` | `stock` | Current stock count |
-| `componentLibraryType` | `type` | `"Basic"` or `"Extended"` |
-| `componentPrices` | `price` / `price_breaks` | Pricing tiers |
-| `minPurchaseNum` | `min_qty` | Minimum order qty |
-| `encapsulationNumber` | `reel_qty` | Reel quantity |
-| `describe` | `description` | Short description |
-| `lcscGoodsUrl` | `url` | Product page URL |
-| `dataManualUrl` | `datasheet` | Datasheet URL |
-| `attributes` | `attributes` | Technical specs array |
-| `componentImageUrl` | `image` | Product image URL |
+| ฟิลด์ต้นทาง | ฟิลด์ปลายทาง | คำอธิบาย |
+|--------------|-------------|----------|
+| `componentCode` | `lcsc` | รหัส LCSC (เช่น `C2040`) |
+| `componentName` | `name` | ชื่อชิ้นส่วน |
+| `componentModelEn` | `model` | หมายเลขรุ่น (ภาษาอังกฤษ) |
+| `componentBrandEn` | `brand` | ยี่ห้อ |
+| `componentSpecificationEn` | `package` | ชนิดแพคเกจ |
+| `componentTypeEn` | `category` | หมวดหมู่ |
+| `stockCount` | `stock` | จำนวนสต็อกปัจจุบัน |
+| `componentLibraryType` | `type` | `"Basic"` หรือ `"Extended"` |
+| `componentPrices` | `price` / `price_breaks` | ราคาแบบแบ่งช่วง |
+| `minPurchaseNum` | `min_qty` | จำนวนสั่งซื้อขั้นต่ำ |
+| `encapsulationNumber` | `reel_qty` | จำนวนต่อรีล |
+| `describe` | `description` | คำอธิบายสั้น |
+| `lcscGoodsUrl` | `url` | URL หน้าสินค้า |
+| `dataManualUrl` | `datasheet` | URL datasheet |
+| `attributes` | `attributes` | สเปคทางเทคนิค (อาเรย์) |
+| `componentImageUrl` | `image` | URL รูปสินค้า |
 
-**Source:** `easyeda_api.py` → `search_jlcpcb_components()`
+**ที่มา:** `easyeda_api.py` → `search_jlcpcb_components()`
 
 ---
 
-## 2. EasyEDA Component API (CAD data)
+## 2. EasyEDA Component API (ข้อมูล CAD)
 
-Resolve an LCSC number to the raw CAD data (symbol json, footprint json, 3D model uuid).
-Called by `get_info_from_easyeda_api()`.
+แปลงรหัส LCSC เป็นข้อมูล CAD ดิบ (symbol JSON, footprint JSON, uuid สำหรับ 3D model)
+เรียกโดย `get_info_from_easyeda_api()`
 
 - **Method:** GET
 - **URL:** `https://easyeda.com/api/products/{lcsc_id}/components`
@@ -93,21 +93,21 @@ Called by `get_info_from_easyeda_api()`.
 }
 ```
 
-| Field | Description |
-|-------|-------------|
-| `result.dataStr` | Symbol JSON (`head.cId` = uuid for parts search) |
-| `result.packageDetail` | Footprint JSON |
-| `result.3dModel.uuid` | UUID to fetch 3D model |
+| ฟิลด์ | คำอธิบาย |
+|-------|----------|
+| `result.dataStr` | JSON ของ symbol (`head.cId` = uuid ใช้ค้นหาชิ้นส่วน) |
+| `result.packageDetail` | JSON ของ footprint |
+| `result.3dModel.uuid` | UUID สำหรับดึง 3D model |
 
-**Note:** This endpoint is the building block of `get_cad_data_of_component()` which
-is used by the import workflow (not the search GUI).
+**หมายเหตุ:** endpoint นี้เป็นส่วนประกอบของ `get_cad_data_of_component()` ซึ่งใช้
+ในขั้นตอน import (ไม่ใช่ใน search GUI)
 
 ---
 
-## 3. EasyEDA SVG Endpoint (Preview)
+## 3. EasyEDA SVG Endpoint (พรีวิว)
 
-Fetch pre-rendered SVG strings for symbol and footprint.  Used by the DetailPanel
-for static image previews (fallback when WebView is unavailable).
+ดึง SVG ที่เรนเดอร์ไว้แล้วของ symbol และ footprint ใช้ใน DetailPanel สำหรับ
+พรีวิวแบบภาพนิ่ง (สำรองเมื่อ WebView ใช้งานไม่ได้)
 
 - **Method:** GET
 - **URL:** `https://easyeda.com/api/products/{lcsc_id}/svgs`
@@ -118,81 +118,81 @@ for static image previews (fallback when WebView is unavailable).
 {
   "result": [
     { "svg": "<svg>…</svg>" },    // symbol unit 1
-    { "svg": "<svg>…</svg>" },    // symbol unit N (if multi-unit)
-    { "svg": "<svg>…</svg>" }     // footprint (last entry)
+    { "svg": "<svg>…</svg>" },    // symbol unit N (ถ้ามีหลาย unit)
+    { "svg": "<svg>…</svg>" }     // footprint (ตัวสุดท้าย)
   ]
 }
 ```
 
-The code returns:
-- `symbol` = first entry's `svg` (when there are 2+ entries)
-- `footprint` = last entry's `svg`
+โค้ดคืนค่า:
+- `symbol` = `svg` ของตัวแรก (เมื่อมี 2+ entries)
+- `footprint` = `svg` ของตัวสุดท้าย
 
-**Source:** `easyeda_api.py` → `get_svg_from_api()`
+**ที่มา:** `easyeda_api.py` → `get_svg_from_api()`
 
 ---
 
-## 4. LCSC WebView Preview
+## 4. พรีวิวผ่าน WebView (LCSC)
 
-Display symbol + footprint interactively inside a `wx.html2.WebView` control.
+แสดง symbol + footprint แบบอินเตอร์แอคทีฟภายใน `wx.html2.WebView`
 
 - **URL:** `https://static.lcsc.com/feassets/pc/html/external-libs/lceda/index.html?{lcsc_val}`
-- **lcsc_val:** The LCSC number (e.g. `C2040`) passed as a query parameter.
+- **lcsc_val:** รหัส LCSC (เช่น `C2040`) ส่งเป็น query parameter
 
-This is a static HTML page hosted by LCSC that embeds the EasyEDA viewer.  It requires
-a WebView2 backend (Edge Chromium) to render JavaScript correctly.  If the WebView
-falls back to the IE engine the preview will be blank.
+เป็น HTML หน้าเดียวที่ LCSC โฮสต์ไว้ ฝัง EasyEDA viewer ไว้ภายใน
+ต้องใช้ WebView2 backend (Edge Chromium) ถึงจะเรนเดอร์ JavaScript ได้ถูกต้อง
+ถ้า WebView ตกไปใช้ IE engine พรีวิวจะขึ้นเป็นจอว่าง
 
-**Source:** `component_search.py:539`
+**ที่มา:** `component_search.py:539`
 
 ---
 
-## 5. Product Image URL
+## 5. URL รูปสินค้า
 
-Scrape the LCSC product page for the product image (`og:image` meta tag).
+ดึงรูปสินค้าจากหน้า LCSC โดยหา `<meta property="og:image">`
 
 - **Method:** GET
-- **URL:** Any `https://www.lcsc.com/product-detail/…` page
-- **Extraction:** `<meta property="og:image" content="https://…">`
+- **URL:** หน้าใดก็ได้บน `https://www.lcsc.com/product-detail/…`
+- **การดึงข้อมูล:** `<meta property="og:image" content="https://…">`
 
-Fallback: JSON-LD `<script type="application/ld+json">` → `image` / `contentUrl` / `thumbnail`.
+สำรอง: JSON-LD `<script type="application/ld+json">` → `image` / `contentUrl` / `thumbnail`
 
-**Source:** `easyeda_api.py` → `get_product_image_url()`
+**ที่มา:** `easyeda_api.py` → `get_product_image_url()`
 
 ---
 
 ## 6. 3D Model Endpoints
 
-| Format | URL | Method |
+| รูปแบบ | URL | Method |
 |--------|-----|--------|
 | OBJ | `https://modules.easyeda.com/3dmodel/{uuid}` | GET |
 | STEP | `https://modules.easyeda.com/qAxj6KHrDKw4blvCG8QJPs7Y/{uuid}` | GET |
 
-These return the raw 3D model data.  Not used by Component Search GUI but used by the
-main import workflow when converting a component to KiCad format.
+คืนค่าข้อมูล 3D model ดิบ ไม่ได้ใช้ใน Component Search GUI แต่ใช้ใน import workflow
+เมื่อแปลงชิ้นส่วนเป็น KiCad format
 
-**Source:** `easyeda_api.py` → `get_raw_3d_model_obj()`, `get_step_3d_model()`
+**ที่มา:** `easyeda_api.py` → `get_raw_3d_model_obj()`, `get_step_3d_model()`
 
 ---
 
-## 7. EasyEDA Pro v2 API (batch LCSC → UUID resolution)
+## 7. EasyEDA Pro v2 API (แปลง LCSC → UUID แบบทีละหลายตัว)
 
-Resolve multiple LCSC numbers to component UUIDs in one request.
+แปลงรหัส LCSC หลายตัวเป็น component UUID ในการเรียกครั้งเดียว
 
 - **Method:** POST
 - **URL:** `https://easyeda.com/api/components/searchByNumbers`
 - **Content-Type:** `application/x-www-form-urlencoded; charset=UTF-8`
 - **Body:** `numbers=["C2040","C20197"]` (JSON-stringified array, form-encoded)
 
-**Note:** Used internally by the import workflow, not by the search dialog.
+**หมายเหตุ:** ใช้ภายใน import workflow ไม่ได้ใช้ใน search dialog
 
-**Source:** `easyeda_api.py` → `search_v2_component_uuids_by_lcsc()`
+**ที่มา:** `easyeda_api.py` → `search_v2_component_uuids_by_lcsc()`
 
 ---
 
-## 8. Headers & SSL
+## 8. Headers และ SSL
 
-All requests share these headers:
+ทุก request ใช้ headers ร่วมกันดังนี้:
 
 ```
 Accept-Encoding: gzip, deflate
@@ -202,46 +202,47 @@ User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 …
 Referer: https://easyeda.com/
 ```
 
-Response decompression: if the raw bytes start with `\x1f\x8b` (gzip magic), the
-code uses `gzip.decompress()` before decoding.
+**การคลาย compression:** ถ้า byte ดิบขึ้นต้นด้วย `\x1f\x8b` (gzip magic)
+โค้ดจะใช้ `gzip.decompress()` ก่อนถอดรหัส
 
-SSL context:
-1. macOS → tries KiCad's bundled certifi (`cacert.pem`)
-2. All platforms → tries `certifi` pip package if available
-3. Fallback → system default SSL context
+**SSL context:**
+1. macOS → ลองใช้ certifi ที่มาพร้อม KiCad (`cacert.pem`)
+2. ทุกแพลตฟอร์ม → ลองใช้ `certifi` pip package ถ้ามี
+3. สำรอง → ใช้ system default SSL context
 
-**Source:** `easyeda_api.py` → `__init__()`, `_decode_response()`, `_create_ssl_context()`
+**ที่มา:** `easyeda_api.py` → `__init__()`, `_decode_response()`, `_create_ssl_context()`
 
 ---
 
 ## 9. Caching
 
-When `use_cache=True`, API responses are saved as files under `.easyeda_cache/`
-in the current working directory.  JSON files are pretty-printed (indent=2).
+เมื่อ `use_cache=True` ระบบจะบันทึก response ของ API ไว้เป็นไฟล์ในโฟลเดอร์
+`.easyeda_cache/` ใน working directory ปัจจุบัน ไฟล์ JSON จะจัดรูปแบบให้อ่านง่าย
+(indent=2)
 
 ---
 
-## 10. Error Handling
+## 10. การจัดการข้อผิดพลาด
 
-- Network errors (`URLError`) → log + return `{}` or `{"total": 0, "results": []}`
-- JSON decode errors → log + return fallback
-- Timeouts: 30 s for CAD data / 3D models, 15 s for search / SVG / product image
-- Invalid hostname in `get_product_image_url()` → silently return `None`
-
----
-
-## Related Files
-
-| File | Role |
-|------|------|
-| `plugins/component_search.py` | GUI frontend, calls `search_jlcpcb_components()`, `get_svg_from_api()`, `get_product_image_url()` |
-| `easyeda2kicad/easyeda/easyeda_api.py` | `EasyedaApi` class — all endpoint wrappers (git submodule) |
-| `plugins/impart_easyeda.py` | Import workflow, uses `get_cad_data_of_component()`, `search_v2_component_uuids_by_lcsc()` |
+- Network error (`URLError`) → log + คืนค่า `{}` หรือ `{"total": 0, "results": []}`
+- JSON decode error → log + คืนค่า fallback
+- Timeout: 30 วินาที สำหรับ CAD data / 3D model, 15 วินาที สำหรับ search / SVG / รูปสินค้า
+- Hostname ไม่ถูกต้องใน `get_product_image_url()` → คืนค่า `None` โดยไม่แจ้งเตือน
 
 ---
 
-## Test (no-keyword) notes
+## ไฟล์ที่เกี่ยวข้อง
 
-The JLCPCB search API also works with an **empty keyword** — it returns every
-component paginated.  The Component Search dialog does not use this path (minimum
-query is 2 characters), but it is available for bulk-catalogue browsing.
+| ไฟล์ | บทบาท |
+|------|--------|
+| `plugins/component_search.py` | GUI frontend, เรียก `search_jlcpcb_components()`, `get_svg_from_api()`, `get_product_image_url()` |
+| `easyeda2kicad/easyeda/easyeda_api.py` | คลาส `EasyedaApi` — wrapper ทุก endpoint (git submodule) |
+| `plugins/impart_easyeda.py` | Import workflow, ใช้ `get_cad_data_of_component()`, `search_v2_component_uuids_by_lcsc()` |
+
+---
+
+## หมายเหตุ (ค้นหาแบบไม่ระบุคำค้น)
+
+JLCPCB search API ยังทำงานได้เมื่อ **ไม่ใส่ keyword** — จะคืนค่าชิ้นส่วนทั้งหมด
+แบบแบ่งหน้า Component Search dialog ไม่ได้ใช้ path นี้ (กำหนดขั้นต่ำ 2 ตัวอักษร)
+แต่สามารถใช้สำหรับเรียกดูแคตตาล็อกทั้งหมดได้
