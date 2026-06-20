@@ -30,6 +30,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Replaced SVG renderer with `wx.html2.WebView` for component previews
 - Improved image caching (LRU, max 50 entries)
 - Filter dialog with brand/package/type exclusion and stock/price ranges
+- Component Search dialog now opens at 85% screen width × 80% screen height
+- Left result ListCtrl sash gravity set to 30% for proportional split
 
 ### Technical
 

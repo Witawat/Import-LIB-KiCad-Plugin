@@ -16,6 +16,8 @@
 - **New:** ปรับปรุง DetailPanel เป็น Card-based layout
 - **New:** เปลี่ยนจาก SVG renderer เป็น `wx.html2.WebView` สำหรับพรีวิวชิ้นส่วน (EasyEDA viewer)
 - **New:** รันแบบ GUI ธรรมดาโดยไม่ต้องเปิด KiCad
+- **New:** ปรับ Component Search dialog ให้เปิด 85% × 80% ของหน้าจอ
+- **New:** Left panel (ListCtrl) ใช้ sash gravity 30% — กว้างตามสัดส่วนตอน resize
 
 ## EXE Checksum
 
