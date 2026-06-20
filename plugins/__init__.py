@@ -190,3 +190,24 @@ class ActionImpartPlugin(pcbnew.ActionPlugin):
 
 
 ActionImpartPlugin().register()
+
+
+class LaunchExePlugin(pcbnew.ActionPlugin):
+    """KiCad Action Plugin to launch the standalone impartGUI executable."""
+
+    def defaults(self) -> None:
+        self.name = "impartGUI (Standalone EXE)"
+        self.category = "Import library files"
+        self.description = "Launch the standalone impartGUI.exe (if present next to the plugin)"
+        self.show_toolbar_button = True
+
+        icon_path = plugin_dir / "icon.png"
+        self.icon_file_name = str(icon_path)
+        self.dark_icon_file_name = str(icon_path)
+
+    def Run(self) -> None:
+        from .launch_exe import launch
+        launch()
+
+
+LaunchExePlugin().register()

@@ -24,6 +24,23 @@
       "icons-dark": [
         "icon.png"
       ]
+    },
+    {
+      "identifier": "impart_launch-exe",
+      "name": "impartGUI (Standalone EXE)",
+      "description": "Launch the standalone impartGUI.exe",
+      "show-button": true,
+      "scopes": [
+        "schematic",
+        "pcb"
+      ],
+      "entrypoint": "launch_exe.py",
+      "icons-light": [
+        "icon.png"
+      ],
+      "icons-dark": [
+        "icon.png"
+      ]
     }
   ]
 }
