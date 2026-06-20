@@ -870,8 +870,10 @@ class SearchDialog(wx.Dialog):  # type: ignore[misc]
         root.Add(self.panel, 1, wx.EXPAND)
         self.SetSizer(root)
 
-        w = parent.GetTopLevelParent().GetSize().width
-        self.SetSize(wx.Size(max(w, 800), 600))
+        display = wx.DisplaySize()
+        w = int(display[0] * 0.85)
+        h = int(display[1] * 0.80)
+        self.SetSize(wx.Size(w, h))
         self.Centre()
 
     def get_lcsc(self) -> str | None:
