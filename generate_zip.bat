@@ -103,8 +103,14 @@ rem --- Include standalone launcher ---
 echo [6/8] run_standalone.bat
 if exist "run_standalone.bat" copy "run_standalone.bat" "%BUILD_DIR%\" >nul
 
+rem --- Include standalone EXE (if built) ---
+if exist "dist\impartGUI.exe" (
+    echo [6/8] impartGUI.exe
+    copy "dist\impartGUI.exe" "%BUILD_DIR%\" >nul
+)
+
 rem --- Cleanup unwanted files ---
-echo [7/8] cleanup
+echo [7/9] cleanup
 for /d /r "%BUILD_DIR%" %%d in (__pycache__) do if exist "%%d" rmdir /s /q "%%d" 2>nul
 del /s /q "%BUILD_DIR%\*.pyc" 2>nul
 del /s /q "%BUILD_DIR%\*.log" 2>nul
@@ -112,7 +118,7 @@ del /s /q "%BUILD_DIR%\*.fbp" 2>nul
 del /s /q "%BUILD_DIR%\*.svg" 2>nul
 
 rem --- Create ZIP ---
-echo [8/8] creating ZIP
+echo [8/9] creating ZIP
 echo.
 
 where powershell >nul 2>nul
