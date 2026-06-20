@@ -643,7 +643,8 @@ class SearchPanel(wx.Panel):  # type: ignore[misc]
             self.list_ctrl.InsertColumn(i, label, width=width)
 
         self.detail_panel = DetailPanel(splitter)
-        splitter.SplitVertically(self.list_ctrl, self.detail_panel, sashPosition=-360)
+        splitter.SetSashGravity(0.3)
+        splitter.SplitVertically(self.list_ctrl, self.detail_panel)
 
         root.Add(splitter, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
 
