@@ -10,11 +10,15 @@ echo Building impartGUI.exe ...
 rem Add plugins/ to Python path so PyInstaller finds local packages
 set PYTHONPATH=%ROOT%plugins
 
+rem Get Python binary directory for WebView2Loader.dll bundling
+for %%i in (%PYTHON%) do set PY_BIN=%%~dpi
+
 %PYTHON% -m PyInstaller --onefile --windowed --name "impartGUI" ^
     --paths "%ROOT%plugins" ^
     --icon "%ROOT%resources\lcsc_favicon.ico" ^
     --add-data "%ROOT%plugins\icon.png;." ^
     --add-data "%ROOT%plugins\config.ini;plugins" ^
+    --add-binary "%PY_BIN%WebView2Loader.dll;." ^
     --hidden-import ConfigHandler ^
     --hidden-import FileHandler ^
     --hidden-import impart_gui ^

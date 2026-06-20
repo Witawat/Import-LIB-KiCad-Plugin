@@ -245,9 +245,10 @@ class DetailPanel(wx.ScrolledWindow):  # type: ignore[misc]
         self._card_sizers: list[wx.StaticBoxSizer] = []
         self._viewer_hl: wx.adv.HyperlinkCtrl | None = None
 
-        self._webview = wx.html2.WebView.New(self)
+        self._webview = self._create_webview()
         self._webview.SetMinSize(wx.Size(300, 650))
         self._webview.Hide()
+        self._webview.Bind(wx.html2.EVT_WEBVIEW_ERROR, self._on_webview_error)
 
         self.SetSizer(self._outer)
 
@@ -274,6 +275,24 @@ class DetailPanel(wx.ScrolledWindow):  # type: ignore[misc]
         s = w.GetContainingSizer() if hasattr(w, 'GetContainingSizer') else None
         if s:
             s.Detach(w)
+
+    def _create_webview(self) -> wx.html2.WebView:
+        has_edge = False
+        try:
+            has_edge = wx.html2.WebView.IsBackendAvailable(wx.html2.WebViewBackendEdge)
+        except Exception:
+            pass
+        if has_edge:
+            wv = wx.html2.WebView.New(self, backend=wx.html2.WebViewBackendEdge)
+            if wv is not None:
+                return wv
+        return wx.html2.WebView.New(self)
+
+    def _on_webview_error(self, evt) -> None:
+        import logging
+        logging.warning(
+            f"WebView error [{evt.GetTarget()}]: {evt.GetString()} (URL: {evt.GetURL()})"
+        )
 
     def _make_card(self, title: str) -> tuple[wx.StaticBox, wx.StaticBoxSizer]:
         box = wx.StaticBox(self, label=f"  {title}")
