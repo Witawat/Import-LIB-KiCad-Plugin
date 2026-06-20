@@ -9,7 +9,6 @@ from __future__ import annotations
 import io
 import logging
 import sys
-import tempfile
 import threading
 import urllib.request
 import webbrowser
@@ -22,6 +21,7 @@ from urllib.parse import urlparse
 
 import wx
 import wx.adv
+import wx.html2
 
 # --- make the easyeda2kicad submodule importable ---
 current_dir = Path(__file__).resolve().parent
@@ -32,46 +32,22 @@ if easyeda_submodule.exists():
         sys.path.insert(0, easyeda_str)
 
 from easyeda2kicad.easyeda.easyeda_api import EasyedaApi  # noqa: E402
-from easyeda2kicad.easyeda.easyeda_svg_renderer import (  # noqa: E402
-    render_footprint_svg,
-    render_symbol_svg,
-)
 
 Row = dict[str, Any]
 
 _SEARCH_PAGE_SIZE = 25  # API page size; results are capped at this value
 _IMAGE_CACHE_MAX = 50  # max cached product images per session
-_CAD_CACHE_MAX = 30  # max cached CAD data entries per session
 
 # (label, field_keys, min_width)  - first matching key wins
 COLUMNS: list[tuple[str, list[str], int]] = [
-    ("LCSC#", ["lcsc", "componentCode"], 80),
-    ("Name", ["name", "componentModelEn"], 200),
-    ("Brand", ["brand", "brandNameEn"], 100),
-    ("Package", ["package", "packageEnglish"], 110),
-    ("Stock", ["stock", "stockCount"], 70),
-    ("Type", ["type", "componentLibraryType"], 70),
-    ("Price", ["price"], 60),
-    ("Description", ["description", "componentDescription"], 260),
+    ("LCSC#", ["lcsc", "componentCode"], 75),
+    ("Name", ["name", "componentModelEn"], 140),
+    ("Brand", ["brand", "brandNameEn"], 80),
+    ("Package", ["package", "packageEnglish"], 90),
+    ("Stock", ["stock", "stockCount"], 60),
+    ("Type", ["type", "componentLibraryType"], 55),
+    ("Price", ["price"], 55),
 ]
-
-# fields shown in the detail panel (label, keys, is_url)
-DETAIL_FIELDS: list[tuple[str, list[str], bool]] = [
-    ("LCSC", ["lcsc", "componentCode"], False),
-    ("Name", ["name", "componentModelEn"], False),
-    ("Model", ["model"], False),
-    ("Brand", ["brand", "brandNameEn"], False),
-    ("Package", ["package", "packageEnglish"], False),
-    ("Category", ["category"], False),
-    ("Stock", ["stock", "stockCount"], False),
-    ("Min. Qty", ["min_qty"], False),
-    ("Reel Qty", ["reel_qty"], False),
-    ("Type", ["type", "componentLibraryType"], False),
-    ("Description", ["description", "componentDescription"], False),
-    ("Datasheet", ["datasheet"], True),
-    ("URL", ["url"], True),
-]
-
 
 def _pick(row: Row, keys: list[str]) -> str:
     for k in keys:
@@ -238,49 +214,98 @@ class FilterDialog(wx.Dialog):  # type: ignore[misc]
 
 
 class DetailPanel(wx.ScrolledWindow):  # type: ignore[misc]
-    """Grid of label/value rows; URL values become clickable hyperlinks."""
+    """Card-based detail panel with categorized sections."""
 
-    _IMG_MAX = 160  # max image dimension in pixels
-    _SVG_WIDTH = 160  # fixed width for SVG previews; height scales proportionally
+    _IMG_MAX = 200
 
     def __init__(self, parent: wx.Window) -> None:
         super().__init__(parent, style=wx.VSCROLL)
         self.SetScrollRate(0, 12)
 
         self._component_url: str | None = None
+        self._viewer_url: str | None = None
 
         self._img_bmp = wx.StaticBitmap(self)
         self._img_bmp.Hide()
         self._img_bmp.Bind(wx.EVT_LEFT_UP, lambda _: self._open_url(self._component_url))
         self._img_bmp.SetCursor(wx.Cursor(wx.CURSOR_HAND))
 
-        self._sym_svg: str | None = None
-        self._fp_svg: str | None = None
+        self._outer = wx.BoxSizer(wx.VERTICAL)
 
-        self._sym_bmp = wx.StaticBitmap(self)
-        self._sym_bmp.Hide()
-        self._sym_bmp.Bind(wx.EVT_LEFT_UP, lambda _: self._open_svg_in_browser(self._sym_svg))
-        self._sym_bmp.SetCursor(wx.Cursor(wx.CURSOR_HAND))
+        self._placeholder = wx.StaticText(self, label="Select a component to view details")
+        f = self._placeholder.GetFont()
+        f.SetPointSize(f.GetPointSize() + 2)
+        f.SetStyle(wx.FONTSTYLE_ITALIC)
+        self._placeholder.SetFont(f)
+        self._placeholder.SetForegroundColour(wx.Colour(140, 140, 140))
+        self._outer.Add(self._placeholder, 0, wx.ALIGN_CENTER | wx.ALL, 40)
 
-        self._fp_bmp = wx.StaticBitmap(self)
-        self._fp_bmp.Hide()
-        self._fp_bmp.Bind(wx.EVT_LEFT_UP, lambda _: self._open_svg_in_browser(self._fp_svg))
-        self._fp_bmp.SetCursor(wx.Cursor(wx.CURSOR_HAND))
+        self._card_boxes: list[wx.StaticBox] = []
+        self._card_sizers: list[wx.StaticBoxSizer] = []
+        self._viewer_hl: wx.adv.HyperlinkCtrl | None = None
 
-        self._sizer = wx.FlexGridSizer(cols=2, vgap=4, hgap=8)
-        self._sizer.AddGrowableCol(1, 1)
+        self._webview = wx.html2.WebView.New(self)
+        self._webview.SetMinSize(wx.Size(300, 650))
+        self._webview.Hide()
 
-        # Right column: product image + symbol SVG + footprint SVG stacked vertically
-        right_col = wx.BoxSizer(wx.VERTICAL)
-        right_col.Add(self._img_bmp, 0, wx.ALIGN_CENTER_HORIZONTAL | wx.BOTTOM, 4)
-        right_col.Add(self._sym_bmp, 0, wx.ALIGN_CENTER_HORIZONTAL | wx.BOTTOM, 4)
-        right_col.Add(self._fp_bmp, 0, wx.ALIGN_CENTER_HORIZONTAL)
+        self.SetSizer(self._outer)
 
-        outer = wx.BoxSizer(wx.HORIZONTAL)
-        outer.Add(self._sizer, 1, wx.EXPAND | wx.ALL, 4)
-        outer.Add(right_col, 0, wx.ALIGN_TOP | wx.ALL, 4)
-        self.SetSizer(outer)
-        self._widgets: list[wx.Window] = []
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _stock_color(stock_str: str) -> wx.Colour:
+        try:
+            s = int(stock_str)
+            if s >= 1000:
+                return wx.Colour(0, 128, 0)
+            if s >= 100:
+                return wx.Colour(180, 140, 0)
+            return wx.Colour(200, 0, 0)
+        except (ValueError, TypeError):
+            return wx.Colour(0, 0, 0)
+
+    @staticmethod
+    def _detach_window(w: wx.Window) -> None:
+        if not w or (hasattr(w, 'IsBeingDeleted') and w.IsBeingDeleted()):
+            return
+        s = w.GetContainingSizer() if hasattr(w, 'GetContainingSizer') else None
+        if s:
+            s.Detach(w)
+
+    def _make_card(self, title: str) -> tuple[wx.StaticBox, wx.StaticBoxSizer]:
+        box = wx.StaticBox(self, label=f"  {title}")
+        font = box.GetFont()
+        font.MakeBold()
+        box.SetFont(font)
+        sizer = wx.StaticBoxSizer(box, wx.VERTICAL)
+        self._card_sizers.append(sizer)
+        self._card_boxes.append(box)
+        self._outer.Add(sizer, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
+        return box, sizer
+
+    def _add_row(self, parent: wx.Window, card: wx.StaticBoxSizer, label: str, value_widget: wx.Window, /) -> None:
+        row = wx.BoxSizer(wx.HORIZONTAL)
+        lbl = wx.StaticText(parent, label=f"{label}:")
+        lf = lbl.GetFont()
+        lf.MakeBold()
+        lbl.SetFont(lf)
+        lbl.SetMinSize(wx.Size(70, -1))
+        row.Add(lbl, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 4)
+        row.Add(value_widget, 1, wx.ALIGN_CENTER_VERTICAL)
+        card.Add(row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 3)
+
+    @staticmethod
+    def _make_badge(parent: wx.Window, text: str, bg: wx.Colour, fg: wx.Colour) -> wx.StaticText:
+        b = wx.StaticText(parent, label=f"  {text}  ")
+        b.SetBackgroundColour(bg)
+        b.SetForegroundColour(fg)
+        return b
+
+    # ------------------------------------------------------------------
+    # Image
+    # ------------------------------------------------------------------
 
     def set_image(self, data: bytes | None) -> None:
         if data:
@@ -290,158 +315,259 @@ class DetailPanel(wx.ScrolledWindow):  # type: ignore[misc]
                     w, h = img.GetWidth(), img.GetHeight()
                     if w > self._IMG_MAX or h > self._IMG_MAX:
                         scale = self._IMG_MAX / max(w, h)
-                        img = img.Scale(int(w * scale), int(h * scale), wx.IMAGE_QUALITY_HIGH)
-                    self._img_bmp.SetBitmap(wx.Bitmap(img))  # pyright: ignore[reportArgumentType]
+                        new_w = int(w * scale)
+                        new_h = int(h * scale)
+                        img = img.Scale(new_w, new_h, wx.IMAGE_QUALITY_HIGH)
+                    else:
+                        new_w, new_h = w, h
+                    bmp = wx.Bitmap(img)  # pyright: ignore[reportArgumentType]
+                    self._img_bmp.SetBitmap(bmp)
+                    self._img_bmp.SetMinSize(wx.Size(new_w, new_h))
                     self._img_bmp.Show()
-                    self.FitInside()
                     self.Layout()
+                    self.FitInside()
                     return
-            except Exception:
-                pass
+            except Exception as e:
+                logging.warning(f"Product image render failed: {e}")
+        self._img_bmp.SetMinSize(wx.Size(0, 0))
         self._img_bmp.Hide()
-        self.FitInside()
         self.Layout()
-
-    def _svg_str_to_bitmap(self, svg_str: str, width: int) -> wx.Bitmap | None:
-        """Convert SVG string to a wx.Bitmap with the given width; height scales proportionally.
-
-        Uses cairosvg (full SVG support incl. text) when available,
-        falls back to wx.svg (shapes only, no text) otherwise.
-        """
-        svg_bytes = svg_str.encode("utf-8")
-        try:
-            import cairosvg  # type: ignore[import-untyped]
-
-            png_bytes = cairosvg.svg2png(bytestring=svg_bytes, output_width=width)
-            img = wx.Image(io.BytesIO(png_bytes), wx.BITMAP_TYPE_PNG)  # pyright: ignore[reportArgumentType, reportCallIssue]
-            if img.IsOk():
-                return wx.Bitmap(img)  # pyright: ignore[reportArgumentType]
-        except ImportError:
-            logging.debug("cairosvg not available, falling back to wx.svg (no text rendering)")
-        except Exception as e:
-            logging.debug(f"cairosvg render failed: {e}")
-
-        return self._svg_fallback_bitmap(svg_bytes, width)
-
-    def _svg_fallback_bitmap(self, svg_bytes: bytes, width: int) -> wx.Bitmap | None:
-        """Fallback SVG renderer via wx.svg (NanoSVG) — shapes only, no text."""
-        try:
-            import wx.svg
-
-            svg_img = wx.svg.SVGimage.CreateFromBytes(svg_bytes)
-            vb_w = svg_img.width or width
-            vb_h = svg_img.height or width
-            scale = width / vb_w if vb_w else 1.0
-            bmp_h = max(1, int(vb_h * scale))
-            return svg_img.ConvertToScaledBitmap(wx.Size(width, bmp_h))
-        except Exception as e:
-            logging.debug(f"wx.svg render failed: {e}")
-        return None
-
-    def set_svg_previews(self, symbol_svg: str | None, footprint_svg: str | None) -> None:
-        """Display symbol and footprint SVG previews below the product image."""
-        self._sym_svg = symbol_svg
-        self._fp_svg = footprint_svg
-        for bmp_ctrl, svg_str in ((self._sym_bmp, symbol_svg), (self._fp_bmp, footprint_svg)):
-            if svg_str:
-                bmp = self._svg_str_to_bitmap(svg_str, self._SVG_WIDTH)
-                if bmp is not None:
-                    bmp_ctrl.SetBitmap(bmp)  # pyright: ignore[reportArgumentType]
-                    bmp_ctrl.Show()
-                else:
-                    bmp_ctrl.Hide()
-            else:
-                bmp_ctrl.Hide()
         self.FitInside()
-        self.Layout()
-
-    def _open_svg_in_browser(self, svg_str: str | None) -> None:
-        if not svg_str:
-            return
-        try:
-            with tempfile.NamedTemporaryFile(
-                suffix=".svg", delete=False, mode="w", encoding="utf-8"
-            ) as f:
-                f.write(svg_str)
-                path = f.name
-            webbrowser.open(f"file://{path}")
-            # Clean up after the browser has had time to read the file
-            threading.Timer(30.0, lambda: Path(path).unlink(missing_ok=True)).start()
-        except Exception as e:
-            logging.debug(f"Failed to open SVG in browser: {e}")
 
     def _open_url(self, url: str | None) -> None:
         if url:
             webbrowser.open(url)
 
-    def _add_row(self, label: str, widget: wx.Window) -> None:
-        lbl = wx.StaticText(self, label=f"{label}:")
-        font = lbl.GetFont()
-        font.MakeBold()
-        lbl.SetFont(font)
-        self._sizer.Add(lbl, 0, wx.ALIGN_CENTER_VERTICAL)
-        self._sizer.Add(widget, 1, wx.ALIGN_LEFT | wx.ALIGN_CENTER_VERTICAL)
-        self._widgets += [lbl, widget]
+    # ------------------------------------------------------------------
+    # Show / Clear
+    # ------------------------------------------------------------------
 
     def show_component(self, row: Row) -> None:
         self._component_url = _pick(row, ["url"]) or None
+
+        # Reparent persistent widgets back to self so they survive box.Destroy()
+        self._detach_window(self._img_bmp)
+        self._detach_window(self._webview)
+        self._img_bmp.Reparent(self)
+        self._webview.Reparent(self)
         self._img_bmp.Hide()
-        self._sym_bmp.Hide()
-        self._fp_bmp.Hide()
-        for w in self._widgets:
-            w.Destroy()
-        self._widgets.clear()
-        self._sizer.Clear()
-        # Reserve space for image column + padding; fall back to 300 if panel not yet sized.
-        wrap_w = max(200, self.GetClientSize().width - self._IMG_MAX - 30)
+        self._webview.Hide()
 
-        for label, keys, is_url in DETAIL_FIELDS:
-            val = _pick(row, keys)
-            if not val:
+        # Destroy previous card boxes (cascade-destroys all child widgets inside)
+        self._viewer_hl = None
+        for box in self._card_boxes:
+            if not box or box.IsBeingDeleted():
                 continue
-            if is_url:
-                if len(val) <= 60:
-                    short = val
-                else:
-                    parsed = urlparse(val)
-                    filename = Path(parsed.path).name
-                    candidate = f"{parsed.netloc}/…{filename}" if filename else val
-                    short = candidate if len(candidate) <= 60 else candidate[:59] + "…"
-                widget: wx.Window = wx.adv.HyperlinkCtrl(self, label=short, url=val)
-            else:
-                widget = wx.StaticText(self, label=val)
-                widget.Wrap(wrap_w)
-            self._add_row(label, widget)
+            box.Destroy()
+        for s in self._card_sizers:
+            self._outer.Detach(s)
+        self._card_boxes.clear()
+        self._card_sizers.clear()
 
-        # Price breaks: "1+: $0.20  |  50+: $0.16  |  ..."
+        # Hide placeholder
+        self._placeholder.Hide()
+
+        wrap_w = max(180, self.GetClientSize().width - 40)
+
+        # ==============================================================
+        # Card: Basic Info (two-column: image left, data right)
+        # ==============================================================
+        box, card = self._make_card("Basic Info")
+
+        main_row = wx.BoxSizer(wx.HORIZONTAL)
+
+        # Left: product image
+        self._img_bmp.Reparent(box)
+        main_row.Add(self._img_bmp, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 6)
+
+        # Right: info fields
+        right_col = wx.BoxSizer(wx.VERTICAL)
+
+        lcsc_val = _pick(row, ["lcsc", "componentCode"])
+        if lcsc_val:
+            val = wx.StaticText(box, label=lcsc_val)
+            f = val.GetFont(); f.MakeBold(); val.SetFont(f)
+            self._add_row(box, right_col, "LCSC#", val)
+
+        name_val = _pick(row, ["name", "componentModelEn"])
+        if name_val:
+            val = wx.StaticText(box, label=name_val)
+            val.Wrap(wrap_w)
+            self._add_row(box, right_col, "Name", val)
+
+        brand_val = _pick(row, ["brand", "brandNameEn"])
+        type_val = _pick(row, ["type", "componentLibraryType"])
+        if brand_val or type_val:
+            row_sizer = wx.BoxSizer(wx.HORIZONTAL)
+            if brand_val:
+                row_sizer.Add(wx.StaticText(box, label=brand_val), 0, wx.ALIGN_CENTER_VERTICAL)
+            if type_val:
+                if brand_val:
+                    row_sizer.Add(wx.StaticText(box, label="  "), 0, wx.ALIGN_CENTER_VERTICAL)
+                badge = self._make_badge(box, type_val, wx.Colour(220, 235, 255), wx.Colour(0, 50, 120))
+                row_sizer.Add(badge, 0, wx.ALIGN_CENTER_VERTICAL)
+            right_col.Add(row_sizer, 0, wx.LEFT | wx.RIGHT | wx.TOP, 3)
+
+        pkg_val = _pick(row, ["package", "packageEnglish"])
+        if pkg_val:
+            txt = wx.StaticText(box, label=pkg_val)
+            txt.Wrap(wrap_w - 74)
+            self._add_row(box, right_col, "Package", txt)
+
+        model_val = _pick(row, ["model"])
+        if model_val:
+            txt = wx.StaticText(box, label=model_val)
+            txt.Wrap(wrap_w - 74)
+            self._add_row(box, right_col, "Model", txt)
+
+        cat_val = _pick(row, ["category"])
+        if cat_val:
+            txt = wx.StaticText(box, label=cat_val)
+            txt.Wrap(wrap_w - 74)
+            self._add_row(box, right_col, "Category", txt)
+
+        desc_val = _pick(row, ["description", "componentDescription"])
+        if desc_val:
+            txt = wx.StaticText(box, label=desc_val)
+            txt.Wrap(wrap_w)
+            self._add_row(box, right_col, "Description", txt)
+
+        main_row.Add(right_col, 1, wx.EXPAND)
+        card.Add(main_row, 1, wx.EXPAND)
+
+        # ==============================================================
+        # Card: Stock & Pricing
+        # ==============================================================
+        box2, card2 = self._make_card("Stock & Pricing")
+
+        stock_val = _pick(row, ["stock", "stockCount"])
+        if stock_val:
+            stock_display = stock_val
+            try:
+                s = int(stock_val)
+                stock_display = f"{s:,}"
+                if s >= 1000:
+                    stock_display += "  (In Stock)"
+                elif s >= 100:
+                    stock_display += "  (Limited)"
+                else:
+                    stock_display += "  (Low)"
+            except (ValueError, TypeError):
+                pass
+            val = wx.StaticText(box2, label=stock_display)
+            val.SetForegroundColour(self._stock_color(stock_val))
+            self._add_row(box2, card2, "Stock", val)
+
+        min_qty = _pick(row, ["min_qty"])
+        reel_qty = _pick(row, ["reel_qty"])
+        if min_qty:
+            self._add_row(box2, card2, "Min Qty", wx.StaticText(box2, label=min_qty))
+        if reel_qty:
+            self._add_row(box2, card2, "Reel Qty", wx.StaticText(box2, label=reel_qty))
+
+        # Price breaks as formatted list
         price_breaks: list[dict[str, Any]] = row.get("price_breaks") or []
         if price_breaks:
-            parts = [
-                f"{p['qty']}+: ${p['price']:.4f}".rstrip("0").rstrip(".") for p in price_breaks
-            ]
-            txt = wx.StaticText(self, label="  |  ".join(parts))
-            txt.Wrap(wrap_w)
-            self._add_row("Prices", txt)
+            price_box = wx.BoxSizer(wx.VERTICAL)
+            for pb in price_breaks:
+                qty = pb.get("qty", "?")
+                price = pb.get("price", 0)
+                price_str = f"${price:.4f}".rstrip("0").rstrip(".")
+                price_box.Add(wx.StaticText(box2, label=f"  {qty}+  {price_str}"), 0)
+            self._add_row(box2, card2, "Prices", price_box)
 
-        # Technical attributes: one row per spec
+        # ==============================================================
+        # Card: Technical Specs
+        # ==============================================================
         attributes: list[dict[str, Any]] = row.get("attributes") or []
         if attributes:
-            specs = "\n".join(f"{a['name']}: {a['value']}" for a in attributes)
-            txt = wx.StaticText(self, label=specs)
-            self._add_row("Specs", txt)
+            box3, card3 = self._make_card("Technical Specs")
+            for attr in attributes:
+                name = attr.get("name", "")
+                value = attr.get("value", "")
+                if name and value:
+                    txt = wx.StaticText(box3, label=value)
+                    txt.Wrap(wrap_w - 74)  # 70px label + 4px gap
+                    self._add_row(box3, card3, name, txt)
 
-        self._sizer.Layout()
+        # ==============================================================
+        # Card: Links
+        # ==============================================================
+        link_fields: list[tuple[str, list[str]]] = [
+            ("Datasheet", ["datasheet"]),
+            ("Product URL", ["url"]),
+        ]
+        has_links = any(_pick(row, keys) for _, keys in link_fields)
+        if has_links:
+            box4, card4 = self._make_card("Links")
+            for label, keys in link_fields:
+                val = _pick(row, keys)
+                if val:
+                    short = val
+                    if len(val) > 65:
+                        parsed = urlparse(val)
+                        filename = Path(parsed.path).name
+                        short = f"{parsed.netloc}/...{filename}" if filename else val[:62] + "..."
+                    hl = wx.adv.HyperlinkCtrl(box4, label=short, url=val)
+                    self._add_row(box4, card4, label, hl)
+
+        # ==============================================================
+        # Card: Previews (proportion=1 to let WebView fill remaining space)
+        # ==============================================================
+        lcsc_val = _pick(row, ["lcsc", "componentCode"])
+        if lcsc_val:
+            self._viewer_url = f"https://static.lcsc.com/feassets/pc/html/external-libs/lceda/index.html?{lcsc_val}"
+
+            box5 = wx.StaticBox(self, label="  Previews")
+            font = box5.GetFont()
+            font.MakeBold()
+            box5.SetFont(font)
+            card5 = wx.StaticBoxSizer(box5, wx.VERTICAL)
+            self._card_boxes.append(box5)
+            self._card_sizers.append(card5)
+            self._outer.Add(card5, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
+
+            # EasyEDA Web Viewer — fills all remaining vertical space
+            self._webview.Reparent(box5)
+            card5.Add(self._webview, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
+
+            self._webview.LoadURL(self._viewer_url)
+            self._webview.Show()
+
+            # Fallback link: open in external browser
+            self._viewer_hl = wx.adv.HyperlinkCtrl(
+                box5,
+                label="Open in Browser (fallback)",
+                url=self._viewer_url,
+            )
+            hl_row = wx.BoxSizer(wx.HORIZONTAL)
+            hl_row.AddStretchSpacer()
+            hl_row.Add(self._viewer_hl, 0)
+            hl_row.AddStretchSpacer()
+            card5.Add(hl_row, 0, wx.EXPAND | wx.BOTTOM, 4)
+
+        self._outer.Layout()
         self.FitInside()
         self.Layout()
 
     def clear(self) -> None:
+        # Reparent persistent widgets back to self before destroying their parent boxes
+        self._detach_window(self._img_bmp)
+        self._detach_window(self._webview)
+        self._img_bmp.Reparent(self)
+        self._webview.Reparent(self)
         self._img_bmp.Hide()
-        self._sym_bmp.Hide()
-        self._fp_bmp.Hide()
-        for w in self._widgets:
-            w.Destroy()
-        self._widgets.clear()
-        self._sizer.Clear()
+        self._webview.Hide()
+
+        for box in self._card_boxes:
+            box.Destroy()
+        for s in self._card_sizers:
+            self._outer.Detach(s)
+        self._card_boxes.clear()
+        self._card_sizers.clear()
+        self._viewer_hl = None
+
+        self._placeholder.Show()
         self.FitInside()
         self.Layout()
 
@@ -464,9 +590,7 @@ class SearchPanel(wx.Panel):  # type: ignore[misc]
         self._sort_asc: bool = True
         self._search_request_id: int = 0
         self._image_request_id: int = 0
-        self._cad_request_id: int = 0
         self._image_cache: OrderedDict[str, bytes] = OrderedDict()
-        self._cad_cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
         self._build_ui()
 
     # ------------------------------------------------------------------
@@ -487,9 +611,9 @@ class SearchPanel(wx.Panel):  # type: ignore[misc]
         search_row.Add(self.btn_filter, 0)
         root.Add(search_row, 0, wx.EXPAND | wx.ALL, 6)
 
-        # ---- splitter: result list (top) / detail panel (bottom) ----
+        # ---- splitter: result list (left) / detail panel (right) ----
         splitter = wx.SplitterWindow(self, style=wx.SP_LIVE_UPDATE | wx.SP_3DSASH)
-        splitter.SetMinimumPaneSize(80)
+        splitter.SetMinimumPaneSize(120)
 
         self.list_ctrl = wx.ListCtrl(
             splitter,
@@ -499,7 +623,7 @@ class SearchPanel(wx.Panel):  # type: ignore[misc]
             self.list_ctrl.InsertColumn(i, label, width=width)
 
         self.detail_panel = DetailPanel(splitter)
-        splitter.SplitHorizontally(self.list_ctrl, self.detail_panel, sashPosition=-220)
+        splitter.SplitVertically(self.list_ctrl, self.detail_panel, sashPosition=-360)
 
         root.Add(splitter, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 6)
 
@@ -627,18 +751,13 @@ class SearchPanel(wx.Panel):  # type: ignore[misc]
         idx = event.GetIndex()
         if 0 <= idx < len(self._results):
             row = self._results[idx]
-            self.detail_panel.show_component(row)
-            lcsc_url = row.get("url", "")
             lcsc = _pick(row, ["lcsc", "componentCode"])
+            lcsc_url = row.get("url", "")
+            self.detail_panel.show_component(row)
 
             self._image_request_id += 1
             threading.Thread(
                 target=self._fetch_image, args=(str(lcsc_url), self._image_request_id), daemon=True
-            ).start()
-
-            self._cad_request_id += 1
-            threading.Thread(
-                target=self._fetch_cad_data, args=(lcsc, self._cad_request_id), daemon=True
             ).start()
 
             if self._on_select_cb is not None and lcsc:
@@ -671,42 +790,6 @@ class SearchPanel(wx.Panel):  # type: ignore[misc]
         # Discard result if user has already selected a different component.
         if req_id == self._image_request_id:
             self.detail_panel.set_image(data)
-
-    def _fetch_cad_data(self, lcsc_id: str, req_id: int) -> None:
-        if not lcsc_id:
-            return
-
-        if lcsc_id in self._cad_cache:
-            wx.CallAfter(lambda: self._on_cad_ready(req_id, self._cad_cache[lcsc_id]))
-            return
-
-        cad_data: dict[str, Any] | None = None
-        try:
-            result = self.api.get_cad_data_of_component(lcsc_id=lcsc_id)
-            if isinstance(result, dict) and result:
-                cad_data = result
-                self._cad_cache[lcsc_id] = cad_data
-                if len(self._cad_cache) > _CAD_CACHE_MAX:
-                    self._cad_cache.popitem(last=False)
-        except Exception as e:
-            logging.debug(f"CAD data fetch failed for {lcsc_id}: {e}")
-        wx.CallAfter(lambda: self._on_cad_ready(req_id, cad_data))
-
-    def _on_cad_ready(self, req_id: int, cad_data: dict[str, Any] | None) -> None:
-        if req_id != self._cad_request_id:
-            return
-        sym_svg: str | None = None
-        fp_svg: str | None = None
-        if cad_data:
-            try:
-                sym_svg = render_symbol_svg(cad_data)
-            except Exception as e:
-                logging.debug(f"Symbol SVG render failed: {e}")
-            try:
-                fp_svg = render_footprint_svg(cad_data)
-            except Exception as e:
-                logging.debug(f"Footprint SVG render failed: {e}")
-        self.detail_panel.set_svg_previews(sym_svg, fp_svg)
 
     # ------------------------------------------------------------------
     # Helpers
