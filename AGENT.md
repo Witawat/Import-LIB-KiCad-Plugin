@@ -104,6 +104,63 @@ REMOTE_TYPES:
 4. ถ้าเพิ่ม setting → เพิ่มใน `config.ini`, `_setup_gui()`, `_save_settings()`, `_update_backend_settings()`
 5. ทดสอบทั้ง IPC mode และ fallback mode
 
+## Patterns ที่ใช้ใน component_search.py
+
+### Callback chain (on_select / on_import)
+```
+SearchDialog(on_select=..., on_import=...)
+  → SearchPanel(on_select=cb, on_import=cb)
+    → DetailPanel(on_import=wrapped_cb)
+```
+- `on_select`: เรียกเมื่อคลิกแถว ListCtrl — ส่ง LCSC# ไป fill field หน้าหลัก
+- `on_import`: เรียกเมื่อกด Import ใน Actions card — ควร wrap ด้วย `_wrap_import()` เพื่อ update status
+- `_wrap_import()`: set_status → Update() → real callback → set_status("")
+
+### Button visual feedback (synchronous import)
+```python
+btn.Disable()
+btn.SetLabel("Importing...")
+btn.Update()       # force immediate repaint
+try:
+    callback()     # blocking import (main thread)
+finally:
+    btn.Enable()
+    btn.SetLabel("Import to KiCad")
+```
+
+### Variable naming: ระวัง shadowing
+ใน `show_component(self, row)` ห้ามใช้ `row` เป็นชื่อ sizer/ตัวแปรอื่น — `row` คือ parameter ที่เป็น dict ของ component data
+```python
+# ❌ row = wx.BoxSizer(wx.HORIZONTAL)   → shadow! cascade fail
+# ✅ btn_row = wx.BoxSizer(wx.HORIZONTAL)
+```
+
+### ListCtrl auto-resize columns
+```python
+def _auto_resize_columns(self):
+    base = [COLUMNS[i][2] for i in range(col_count)]
+    extra = total - sum(base)
+    # กระจาย extra ตามสัดส่วน min_width
+    for i in range(col_count - 1):
+        w = base[i] + int(extra * base[i] / total_base)
+    # คอลัมน์สุดท้ายรับเศษ rounding
+```
+เรียกที่ `wx.CallAfter(self._auto_resize_columns)` หลัง build UI + `EVT_SIZE`
+
+### Text re-wrap (เมื่อ layout เปลี่ยนจาก image)
+```python
+DetailPanel._rewrap_all_texts():
+    for _ in range(3):  # loop จน stable
+        _walk_and_wrap(self)  # recursive → Wrap(child.GetSize().width)
+        Layout() + FitInside()
+```
+เรียกตอนท้าย `show_component()` และใน `set_image()` หลัง image show/hide
+
+### `_perform_easyeda_import()` return bool
+คืน `True` เมื่อ import สำเร็จ, `False` เมื่อ error — caller ใช้ตรวจสอบ success เพื่อแสดง MessageBox
+
+## ไฟล์ใหม่ที่เพิ่ม: Library Browser
+
 ## ไฟล์ใหม่ที่เพิ่ม: Library Browser
 
 | ไฟล์ | บทบาท |

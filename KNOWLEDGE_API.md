@@ -143,7 +143,7 @@
 ต้องใช้ WebView2 backend (Edge Chromium) ถึงจะเรนเดอร์ JavaScript ได้ถูกต้อง
 ถ้า WebView ตกไปใช้ IE engine พรีวิวจะขึ้นเป็นจอว่าง
 
-**ที่มา:** `component_search.py:539`
+**ที่มา:** `component_search.py` → `self._viewer_url` ใน `show_component()`
 
 ---
 

@@ -17,7 +17,6 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
 
 import wx
 import wx.adv
@@ -219,12 +218,16 @@ class DetailPanel(wx.ScrolledWindow):  # type: ignore[misc]
 
     _IMG_MAX = 200
 
-    def __init__(self, parent: wx.Window) -> None:
+    def __init__(
+        self, parent: wx.Window, on_import: Callable[[str], None] | None = None
+    ) -> None:
         super().__init__(parent, style=wx.VSCROLL)
         self.SetScrollRate(0, 12)
 
         self._component_url: str | None = None
         self._viewer_url: str | None = None
+        self._on_import_cb = on_import
+        self._current_lcsc: str | None = None
 
         self._img_bmp = wx.StaticBitmap(self)
         self._img_bmp.Hide()
@@ -346,6 +349,7 @@ class DetailPanel(wx.ScrolledWindow):  # type: ignore[misc]
                     self._img_bmp.Show()
                     self.Layout()
                     self.FitInside()
+                    self._rewrap_all_texts()
                     return
             except Exception as e:
                 logging.warning(f"Product image render failed: {e}")
@@ -353,10 +357,47 @@ class DetailPanel(wx.ScrolledWindow):  # type: ignore[misc]
         self._img_bmp.Hide()
         self.Layout()
         self.FitInside()
+        self._rewrap_all_texts()
 
     def _open_url(self, url: str | None) -> None:
         if url:
             webbrowser.open(url)
+
+    def _on_import_clicked(self, event: wx.CommandEvent) -> None:
+        if not (self._on_import_cb and self._current_lcsc):
+            return
+        btn = event.GetEventObject()
+        btn.Disable()
+        btn.SetLabel("Importing...")
+        btn.Update()
+        try:
+            self._on_import_cb(self._current_lcsc)
+        finally:
+            btn.Enable()
+            btn.SetLabel("Import to KiCad")
+
+    # ------------------------------------------------------------------
+    # Text re-wrapping (handle image-induced layout changes)
+    # ------------------------------------------------------------------
+
+    def _rewrap_all_texts(self) -> None:
+        for _ in range(3):
+            old = self.GetVirtualSize()
+            self._walk_and_wrap(self)
+            self._outer.Layout()
+            self.FitInside()
+            self.Layout()
+            if self.GetVirtualSize() == old:
+                break
+
+    @staticmethod
+    def _walk_and_wrap(parent: wx.Window) -> None:
+        for child in parent.GetChildren():
+            if isinstance(child, wx.StaticText):
+                w = child.GetSize().width
+                if w > 20:
+                    child.Wrap(w)
+            DetailPanel._walk_and_wrap(child)
 
     # ------------------------------------------------------------------
     # Show / Clear
@@ -364,6 +405,7 @@ class DetailPanel(wx.ScrolledWindow):  # type: ignore[misc]
 
     def show_component(self, row: Row) -> None:
         self._component_url = _pick(row, ["url"]) or None
+        self._current_lcsc = _pick(row, ["lcsc", "componentCode"]) or None
 
         # Reparent persistent widgets back to self so they survive box.Destroy()
         self._detach_window(self._img_bmp)
@@ -403,16 +445,15 @@ class DetailPanel(wx.ScrolledWindow):  # type: ignore[misc]
         # Right: info fields
         right_col = wx.BoxSizer(wx.VERTICAL)
 
-        lcsc_val = _pick(row, ["lcsc", "componentCode"])
-        if lcsc_val:
-            val = wx.StaticText(box, label=lcsc_val)
+        if self._current_lcsc:
+            val = wx.StaticText(box, label=self._current_lcsc)
             f = val.GetFont(); f.MakeBold(); val.SetFont(f)
             self._add_row(box, right_col, "LCSC#", val)
 
         name_val = _pick(row, ["name", "componentModelEn"])
         if name_val:
             val = wx.StaticText(box, label=name_val)
-            val.Wrap(wrap_w)
+            val.Wrap(wrap_w - 74)
             self._add_row(box, right_col, "Name", val)
 
         brand_val = _pick(row, ["brand", "brandNameEn"])
@@ -449,7 +490,7 @@ class DetailPanel(wx.ScrolledWindow):  # type: ignore[misc]
         desc_val = _pick(row, ["description", "componentDescription"])
         if desc_val:
             txt = wx.StaticText(box, label=desc_val)
-            txt.Wrap(wrap_w)
+            txt.Wrap(wrap_w - 74)
             self._add_row(box, right_col, "Description", txt)
 
         main_row.Add(right_col, 1, wx.EXPAND)
@@ -497,6 +538,37 @@ class DetailPanel(wx.ScrolledWindow):  # type: ignore[misc]
             self._add_row(box2, card2, "Prices", price_box)
 
         # ==============================================================
+        # Card: Actions
+        # ==============================================================
+        datasheet = _pick(row, ["datasheet"])
+        product_url = _pick(row, ["url"])
+        has_actions = (self._on_import_cb and self._current_lcsc) or datasheet or product_url
+        if has_actions:
+            box_action, card_action = self._make_card("Actions")
+            btn_row = wx.BoxSizer(wx.HORIZONTAL)
+
+            has_import = self._on_import_cb and self._current_lcsc
+            if has_import:
+                btn = wx.Button(box_action, label="Import to KiCad")
+                btn.SetMinSize(wx.Size(160, 36))
+                btn.Bind(wx.EVT_BUTTON, self._on_import_clicked)
+                btn_row.Add(btn, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 2)
+
+            if datasheet or product_url:
+                if has_import:
+                    btn_row.AddStretchSpacer()
+                if datasheet:
+                    btn = wx.Button(box_action, label="Open Datasheet")
+                    btn.Bind(wx.EVT_BUTTON, lambda evt, url=datasheet: self._open_url(url))
+                    btn_row.Add(btn, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 2)
+                if product_url:
+                    btn = wx.Button(box_action, label="Open Product Page")
+                    btn.Bind(wx.EVT_BUTTON, lambda evt, url=product_url: self._open_url(url))
+                    btn_row.Add(btn, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 2)
+
+            card_action.Add(btn_row, 0, wx.EXPAND | wx.ALL, 4)
+
+        # ==============================================================
         # Card: Technical Specs
         # ==============================================================
         attributes: list[dict[str, Any]] = row.get("attributes") or []
@@ -511,32 +583,10 @@ class DetailPanel(wx.ScrolledWindow):  # type: ignore[misc]
                     self._add_row(box3, card3, name, txt)
 
         # ==============================================================
-        # Card: Links
-        # ==============================================================
-        link_fields: list[tuple[str, list[str]]] = [
-            ("Datasheet", ["datasheet"]),
-            ("Product URL", ["url"]),
-        ]
-        has_links = any(_pick(row, keys) for _, keys in link_fields)
-        if has_links:
-            box4, card4 = self._make_card("Links")
-            for label, keys in link_fields:
-                val = _pick(row, keys)
-                if val:
-                    short = val
-                    if len(val) > 65:
-                        parsed = urlparse(val)
-                        filename = Path(parsed.path).name
-                        short = f"{parsed.netloc}/...{filename}" if filename else val[:62] + "..."
-                    hl = wx.adv.HyperlinkCtrl(box4, label=short, url=val)
-                    self._add_row(box4, card4, label, hl)
-
-        # ==============================================================
         # Card: Previews (proportion=1 to let WebView fill remaining space)
         # ==============================================================
-        lcsc_val = _pick(row, ["lcsc", "componentCode"])
-        if lcsc_val:
-            self._viewer_url = f"https://static.lcsc.com/feassets/pc/html/external-libs/lceda/index.html?{lcsc_val}"
+        if self._current_lcsc:
+            self._viewer_url = f"https://static.lcsc.com/feassets/pc/html/external-libs/lceda/index.html?{self._current_lcsc}"
 
             box5 = wx.StaticBox(self, label="  Previews")
             font = box5.GetFont()
@@ -569,6 +619,7 @@ class DetailPanel(wx.ScrolledWindow):  # type: ignore[misc]
         self._outer.Layout()
         self.FitInside()
         self.Layout()
+        self._rewrap_all_texts()
 
     def clear(self) -> None:
         # Reparent persistent widgets back to self before destroying their parent boxes
@@ -599,10 +650,12 @@ class SearchPanel(wx.Panel):  # type: ignore[misc]
         self,
         parent: wx.Window,
         on_select: Callable[[str], None] | None = None,
+        on_import: Callable[[str], None] | None = None,
     ) -> None:
         super().__init__(parent)
         self.api = EasyedaApi()
         self._on_select_cb = on_select
+        self._on_import_cb = on_import
         self._all_results: list[Row] = []
         self._results: list[Row] = []
         self._filter_state = FilterState()
@@ -642,7 +695,7 @@ class SearchPanel(wx.Panel):  # type: ignore[misc]
         for i, (label, _, width) in enumerate(COLUMNS):
             self.list_ctrl.InsertColumn(i, label, width=width)
 
-        self.detail_panel = DetailPanel(splitter)
+        self.detail_panel = DetailPanel(splitter, on_import=self._wrap_import)
         splitter.SetSashGravity(0.3)
         splitter.SplitVertically(self.list_ctrl, self.detail_panel)
 
@@ -661,6 +714,8 @@ class SearchPanel(wx.Panel):  # type: ignore[misc]
         self.btn_filter.Bind(wx.EVT_BUTTON, self._on_filter)
         self.list_ctrl.Bind(wx.EVT_LIST_ITEM_SELECTED, self._on_item_selected)
         self.list_ctrl.Bind(wx.EVT_LIST_COL_CLICK, self._on_col_click)
+
+        wx.CallAfter(self._auto_resize_columns)
 
     # ------------------------------------------------------------------
     # Search logic
@@ -818,19 +873,42 @@ class SearchPanel(wx.Panel):  # type: ignore[misc]
 
     def _on_list_resize(self, event: wx.SizeEvent) -> None:
         event.Skip()
-        # Stretch the last column to fill any remaining horizontal space.
+        self._auto_resize_columns()
+
+    def _auto_resize_columns(self) -> None:
         total = self.list_ctrl.GetClientSize().width
-        used = sum(
-            self.list_ctrl.GetColumnWidth(i) for i in range(self.list_ctrl.GetColumnCount() - 1)
-        )
-        last = self.list_ctrl.GetColumnCount() - 1
-        remaining = total - used
-        if last >= 0 and remaining > COLUMNS[last][2]:
-            self.list_ctrl.SetColumnWidth(last, remaining)
+        col_count = self.list_ctrl.GetColumnCount()
+        if not col_count:
+            return
+
+        base = [COLUMNS[i][2] for i in range(col_count)]
+        total_base = sum(base)
+
+        if total <= total_base:
+            for i in range(col_count):
+                self.list_ctrl.SetColumnWidth(i, base[i])
+            return
+
+        extra = total - total_base
+        assigned = 0
+        for i in range(col_count - 1):
+            w = base[i] + int(extra * base[i] / total_base)
+            self.list_ctrl.SetColumnWidth(i, w)
+            assigned += w
+        self.list_ctrl.SetColumnWidth(col_count - 1, total - assigned)
 
     def _set_status(self, msg: str) -> None:
         self.status.SetLabel(msg)
         self.Layout()
+
+    def _wrap_import(self, lcsc: str) -> None:
+        self._set_status(f"Importing {lcsc}...")
+        self.Update()
+        try:
+            if self._on_import_cb:
+                self._on_import_cb(lcsc)
+        finally:
+            self._set_status("")
 
     def get_selected_lcsc(self) -> str | None:
         """Return the LCSC# of the currently selected item, or None."""
@@ -853,19 +931,23 @@ class SearchDialog(wx.Dialog):  # type: ignore[misc]
     on_select:
         Optional callback called immediately whenever the user clicks a row in
         the result list.  Receives the LCSC# string of the selected component.
+    on_import:
+        Optional callback called when the user clicks "Import to KiCad" in the
+        detail panel.  Receives the LCSC# of the currently shown component.
     """
 
     def __init__(
         self,
         parent: wx.Window,
         on_select: Callable[[str], None] | None = None,
+        on_import: Callable[[str], None] | None = None,
     ) -> None:
         super().__init__(
             parent,
             title="Component Search",
             style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
         )
-        self.panel = SearchPanel(self, on_select=on_select)
+        self.panel = SearchPanel(self, on_select=on_select, on_import=on_import)
 
         root = wx.BoxSizer(wx.VERTICAL)
         root.Add(self.panel, 1, wx.EXPAND)

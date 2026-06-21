@@ -840,7 +840,24 @@ class ImpartFrontend(impartGUI):
         def _live_update(lcsc: str) -> None:
             self.m_textCtrl2.SetValue(lcsc)
 
-        dlg = SearchDialog(self, on_select=_live_update)
+        def _quick_import(lcsc: str) -> None:
+            self.m_textCtrl2.SetValue(lcsc)
+            self._update_backend_settings()
+            try:
+                ok = self._perform_easyeda_import()
+            except Exception as e:
+                ok = False
+                error_msg = f"Import failed: {e}"
+                self.backend.print_to_buffer(error_msg)
+                logging.exception(f"Quick import failed for {lcsc}")
+            if ok:
+                wx.MessageBox(
+                    f"Component {lcsc} imported successfully!",
+                    "Import Successful",
+                    wx.OK | wx.ICON_INFORMATION,
+                )
+
+        dlg = SearchDialog(self, on_select=_live_update, on_import=_quick_import)
         dlg.ShowModal()
         dlg.Destroy()
         event.Skip()
@@ -913,8 +930,8 @@ class ImpartFrontend(impartGUI):
             event.Skip()
         self._check_and_show_library_warnings()
 
-    def _perform_easyeda_import(self) -> None:
-        """Perform EasyEDA component import."""
+    def _perform_easyeda_import(self) -> bool:
+        """Perform EasyEDA component import.  Returns True on success."""
         try:
             from .impart_easyeda import ImportConfig, import_easyeda_component
         except ImportError:
@@ -937,14 +954,13 @@ class ImpartFrontend(impartGUI):
                     "Import Error",
                     wx.OK | wx.ICON_ERROR,
                 )
-                return
+                return False
 
         if self.backend.local_lib:
             if not self.kicad_project:
-                # Try a late refresh – KiCad may have opened a project after plugin start
                 self.backend.kicad_app.refresh_project_info()
                 self.kicad_project = self.backend.kicad_app.get_project_dir()
-            if not self.kicad_project:  # still None after refresh → genuine error
+            if not self.kicad_project:
                 self.backend.print_to_buffer(
                     "Error: Local library mode selected, but no KiCad project is open."
                 )
@@ -954,9 +970,8 @@ class ImpartFrontend(impartGUI):
                     "  2. Uncheck 'Local Library' to use global library path"
                 )
                 logging.error("Local library mode selected but no KiCad project available")
-                return
+                return False
 
-            # Verify the project path exists and is valid
             project_path = Path(self.kicad_project)
             if not project_path.exists() or not project_path.is_dir():
                 self.backend.print_to_buffer(
@@ -964,7 +979,7 @@ class ImpartFrontend(impartGUI):
                 )
                 self.backend.print_to_buffer("Please check your KiCad project setup.")
                 logging.error(f"KiCad project directory invalid: {self.kicad_project}")
-                return
+                return False
 
             path_variable = "${KIPRJMOD}"
             base_folder = project_path
@@ -981,6 +996,7 @@ class ImpartFrontend(impartGUI):
         )
 
         component_id = self.m_textCtrl2.GetValue().strip()
+        success: bool = False
 
         try:
             _ = import_easyeda_component(
@@ -990,6 +1006,7 @@ class ImpartFrontend(impartGUI):
             )
             self.backend.print_to_buffer("")
             logging.info(f"Successfully imported EasyEDA component {component_id}")
+            success = True
 
         except ValueError as e:
             error_msg = f"Invalid component ID {component_id}: {e}"
@@ -1006,6 +1023,8 @@ class ImpartFrontend(impartGUI):
             self.backend.print_to_buffer(error_msg)
             logging.exception(f"Unexpected error importing {component_id}")
             wx.MessageBox(error_msg, "Unexpected Error", wx.OK | wx.ICON_ERROR)
+
+        return success
 
 
 def create_backend_handler() -> ImpartBackend:

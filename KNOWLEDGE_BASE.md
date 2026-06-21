@@ -69,10 +69,15 @@ User ลาก ZIP → วางบน text control
 ```
 User ค้นหาชื่อชิ้นส่วน
     → EasyedaApi.search_jlcpcb_components() (API)
-    → แสดงผลใน ListCtrl
-    → เลือกรายการ → fetch product image + CAD data
-    → แสดง symbol SVG + footprint SVG preview
-    → callback ส่ง LCSC# กลับไปที่ main GUI
+    → แสดงผลใน ListCtrl (auto-resize columns ตามสัดส่วน)
+    → เลือกรายการ → show_component() → สร้าง cards:
+        Basic Info → Stock & Pricing → Actions → Technical Specs → Previews
+    → fetch product image (async) → set_image() → _rewrap_all_texts()
+    → กด Import → _on_import_clicked() → disable btn → "Importing..."
+        → _wrap_import() → set_status → _on_import_cb()
+        → _perform_easyeda_import() → return bool
+        → MessageBox Success/Error → restore btn
+    → กด Open Datasheet/Product Page → _open_url() → browser
 ```
 
 ## โครงสร้างคลาสสำคัญ
@@ -94,6 +99,40 @@ User ค้นหาชื่อชิ้นส่วน
 - **`PluginThread(Thread)`** — Daemon thread สำหรับ monitor status:
   - ตรวจสอบ `print_buffer` ทุก 0.5 วินาที
   - ส่ง `ResultEvent` ผ่าน `wx.PostEvent`
+
+### component_search.py
+- **`DetailPanel(wx.ScrolledWindow)`** — Card-based detail view (ฝั่งขวาของ splitter):
+  - Cards (เรียงจากบนลงล่าง): Basic Info → Stock & Pricing → Actions → Technical Specs → Previews
+  - `show_component(row)`: สร้าง cards ใหม่ทั้งหมด, ตั้งค่า `_current_lcsc`, wrap text ครั้งแรก
+  - `set_image(data)`: ตั้งรูปสินค้า (async) → `_rewrap_all_texts()` re-wrap ข้อความ
+  - `_on_import_clicked(event)`: disable btn → "Importing..." → `Update()` → callback → restore
+  - `_rewrap_all_texts()`: traverse children StaticText → `Wrap(current_width)` → Layout (loop สูงสุด 3 รอบจน stable)
+  - `_walk_and_wrap(parent)`: static method recursive walk children
+  - `clear()`: ทำลาย cards ทั้งหมด → แสดง placeholder
+  - `_open_url(url)`: เปิด URL ใน external browser
+
+- **`SearchPanel(wx.Panel)`** — หน้าค้นหาหลัก:
+  - Search bar + Filter button + ListCtrl (auto-resize columns) + DetailPanel (splitter)
+  - `_build_ui()`: สร้าง UI + wx.CallAfter(`_auto_resize_columns`)
+  - `_on_search()`: ส่ง API request แบบ async thread → `_search_done()` → `_apply_filters()`
+  - `_on_item_selected()`: แสดง detail + fetch image + callback `on_select(lcsc)`
+  - `_wrap_import(lcsc)`: set_status("Importing...") → `_on_import_cb()` → set_status("")
+  - `_auto_resize_columns()`: กระจาย extra space ตามสัดส่วน min_width
+  - `_populate_list()`: เติม ListCtrl จาก `self._results`
+  - `_apply_filters()`: กรองตาม FilterState (brand, package, type, stock, price)
+  - FilterState: excluded_brands/packages/types, min_stock, min_price, max_price
+  - COLUMNS: 7 คอลัมน์ (LCSC#, Name, Brand, Package, Stock, Type, Price) พร้อม min_width
+
+- **`SearchDialog(wx.Dialog)`** — Dialog wrapper:
+  - เปิด 85% × 80% ของหน้าจอ
+  - `on_select`: callback เมื่อคลิกแถว (เติม LCSC# ใน main GUI)
+  - `on_import`: callback เมื่อกด Import (เรียก `_quick_import` ซึ่ง sync settings → `_perform_easyeda_import`)
+  - `get_lcsc()`: คืนค่า LCSC# ของแถวที่เลือก
+
+- **`FilterDialog(wx.Dialog)`** — Dialog กรองผลลัพธ์:
+  - Brand/Package/Type: CheckListBox (exclude mode)
+  - Numeric: Min Stock, Min Price, Max Price
+  - Reset button + OK/Cancel
 
 ### single_instance_manager.py
 - **`SingleInstanceManager`**:

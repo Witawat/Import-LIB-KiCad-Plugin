@@ -1,34 +1,24 @@
-# Release Notes — impartGUI v1.0.0
+# Release Notes — impartGUI v1.1.0
 
 ## What's New
 
-- **Component Search** — ค้นหาชิ้นส่วนจาก JLCPCB / EasyEDA / LCSC ในตัว
-- **Real-time Preview** — ดู symbol และ footprint ของชิ้นส่วนผ่าน EasyEDA Web Viewer
-- **Multi-format Import** — รองรับ ZIP (Octopart, Samacsys, UltraLibrarian, Snapeda), EasyEDA, LCSC
-- **Library Browser** — ดูไลบรารีที่ import แล้ว
-- **Single-file EXE** — ใช้งานได้ทันทีไม่ต้องติดตั้ง Python หรือ KiCad (ใช้ Python 11 + wxPython 4.2.2)
+- **Quick Import** — ปุ่ม "Import to KiCad" ใน Component Search Details — import ทันที ไม่ต้องกลับไปหน้าหลัก
+- **Link Buttons** — Datasheet / Product Page เป็นปุ่มกดเปิด browser ได้จาก DetailPanel
+- **Auto-Resize Columns** — ListCtrl ปรับขนาดคอลัมน์ตามสัดส่วนอัตโนมัติ
+- **Smart Text Wrapping** — ข้อความใน cards re-wrap อัตโนมัติเมื่อ image โหลดหรือ resize
 
 ## Changelog
 
-- **Fix:** Bundle `WebView2Loader.dll` กับ PyInstaller build — แก้ปัญหา WebView Preview แสดงเฉพาะกรอบเปล่า ไม่มี symbol/footprint (IE fallback)
-- **Fix:** ปรับปรุงการเขียนการตั้งค่าคงอยู่ (`debug_log` toggle ใน `config.ini`)
-- **Fix:** แก้ kiutils encoding issue
-- **New:** ปรับปรุง DetailPanel เป็น Card-based layout
-- **New:** เปลี่ยนจาก SVG renderer เป็น `wx.html2.WebView` สำหรับพรีวิวชิ้นส่วน (EasyEDA viewer)
-- **New:** รันแบบ GUI ธรรมดาโดยไม่ต้องเปิด KiCad
-- **New:** ปรับ Component Search dialog ให้เปิด 85% × 80% ของหน้าจอ
-- **New:** Left panel (ListCtrl) ใช้ sash gravity 30% — กว้างตามสัดส่วนตอน resize
-
-## EXE Checksum
-
-```
-File:      impartGUI.exe
-Size:      57.7 MB
-SHA256:    1b235522a764b96f534fe8132d30932cae7d1736bfb4ac323950538b8e0c74ba
-```
+- **New:** Actions card รวม Import + Links — Import ซ้าย, Open Datasheet/Product Page ขวา
+- **New:** Status bar แสดง "Importing Cxxxxx..." ขณะ import
+- **New:** MessageBox แจ้งผล import สำเร็จ
+- **New:** `_auto_resize_columns()` กระจายสัดส่วนคอลัมน์ ListCtrl
+- **New:** `_rewrap_all_texts()` re-wrap StaticText หลัง image โหลด
+- **Fix:** variable shadowing `row` → `btn_row` (AttributeError ใน show_component)
+- **Fix:** Name/Description wrapping width ใช้ `wrap_w - 74` ป้องกันล้นกรอบ
 
 ## System Requirements
 
 - Windows 10 / 11 (x64)
-- ไม่ต้องติดตั้ง KiCad หรือ Python
+- KiCad 8.0 / 9.0 / 10.0 หรือไม่ต้องมีก็ได้ (Standalone)
 - ต้องมีอินเทอร์เน็ตสำหรับ Component Search และ Preview

@@ -221,11 +221,21 @@ python3 plugins/impart_action.py
 ### Component Search (JLCPCB/EasyEDA)
 
 กดปุ่ม **Component Search** เพื่อค้นหาชิ้นส่วนจาก JLCPCB/EasyEDA:
-1. ค้นหาด้วยชื่อชิ้นส่วนหรือ LCSC Part# (เช่น `C2040`)
-2. เลือกชิ้นส่วนจากรายการผลลัพธ์
-3. กด Import เพื่อนำเข้า symbol, footprint และ 3D model อัตโนมัติ
 
-หรือป้อน LCSC Part# ในช่อง **LCSC Part#** แล้วกด **Import** โดยตรง
+1. ค้นหาด้วยชื่อชิ้นส่วนหรือ LCSC Part# (เช่น `C2040`)
+2. เลือกชิ้นส่วนจากรายการผลลัพธ์ → แสดงรายละเอียดทางขวา
+3. กด **Import to KiCad** ใน Actions card เพื่อนำเข้า symbol, footprint และ 3D model โดยไม่ต้องออกจากหน้าค้นหา
+4. หรือกด **Open Datasheet** / **Open Product Page** เพื่อเปิดลิงก์ใน browser
+5. หรือป้อน LCSC Part# ในช่อง **LCSC Part#** แล้วกด **Import** โดยตรงจากหน้าหลัก
+
+**รายละเอียด DetailPanel (ฝั่งขวา):**
+- **Basic Info:** รูปสินค้า, LCSC#, ชื่อ, ยี่ห้อ, แพคเกจ, หมวดหมู่, คำอธิบาย
+- **Stock & Pricing:** จำนวนสต็อก (มีสีบอกสถานะ), ราคาแบบแบ่งช่วง
+- **Actions:** `[Import to KiCad]` + `[Open Datasheet]` `[Open Product Page]` เรียงในแถวเดียวกัน
+- **Technical Specs:** คุณสมบัติทางเทคนิค (attribute → value)
+- **Previews:** พรีวิว 3D แบบอินเตอร์แอคทีฟผ่าน EasyEDA Web Viewer
+
+ข้อความยาวใน cards จะถูกปรับ wrapping อัตโนมัติเมื่อมีการโหลดรูปสินค้า หรือเปลี่ยนขนาดหน้าต่าง
 
 ---
 
@@ -290,18 +300,21 @@ dest_path = C:\Users\...\KiCad
 ```
 Import-LIB-KiCad-Plugin/
 ├── plugins/
-│   ├── impart_action.py         # Entrypoint หลักและ event handlers
-│   ├── impart_gui.py            # GUI จาก wxFormBuilder (ห้ามแก้ไข)
-│   ├── impart_easyeda.py        # EasyEDA/LCSC importer
-│   ├── component_search.py      # ค้นหาชิ้นส่วน JLCPCB
+│   ├── impart_action.py         # Entrypoint หลัก + event handlers + import logic
+│   ├── impart_gui.py            # GUI จาก wxFormBuilder (ห้ามแก้ไขตรง)
+│   ├── impart_easyeda.py        # EasyEDA/LCSC importer (import_easyeda_component)
+│   ├── component_search.py      # ค้นหาชิ้นส่วน JLCPCB (SearchPanel, SearchDialog)
+│   │   ├── DetailPanel          # Card-based detail view (Basic Info, Stock, Actions, Specs, Previews)
+│   │   ├── SearchPanel          # ListCtrl + search/filter + detail
+│   │   └── SearchDialog         # Dialog wrapper สำหรับเรียกใช้จาก impart_action
 │   ├── library_scanner.py       # Scanner สำหรับ Library Browser
-│   ├── library_browser.py       # GUI สำหรับ Library Browser
-│   ├── single_instance_manager.py # ป้องกัน instance ซ้ำ
+│   ├── library_browser.py       # GUI สำหรับ Library Browser (3 tabs)
+│   ├── single_instance_manager.py # ป้องกัน instance ซ้ำ (TCP socket)
 │   ├── ConfigHandler/           # จัดการ config.ini
-│   ├── FileHandler/             # ตรวจสอบไฟล์ใหม่
-│   ├── KiCad_Settings/          # จัดการ KiCad settings files
-│   ├── KiCadSettingsPaths/      # ค้นหา KiCad settings path
-│   ├── KiCadImport/             # กลไก import หลัก
+│   ├── FileHandler/             # ตรวจสอบไฟล์ ZIP ใหม่
+│   ├── KiCad_Settings/          # จัดการ sym-lib-table / fp-lib-table
+│   ├── KiCadSettingsPaths/      # ค้นหา KiCad settings path + KiCadApp
+│   ├── KiCadImport/             # กลไก import ZIP → KiCad library
 │   └── kicad_cli/               # Wrapper รอบ kicad-cli
 ├── metadata.json                # PCM manifest
 ├── plugin.json                  # KiCad Plugin API manifest
